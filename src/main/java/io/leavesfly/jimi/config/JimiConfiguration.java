@@ -18,9 +18,10 @@ public class JimiConfiguration {
 
     /**
      * ObjectMapper Bean - JSON 序列化/反序列化
-     * 全局单例，用于所有 JSON 处理
+     * 全局单例,用于所有 JSON 处理
      */
     @Bean
+    @org.springframework.context.annotation.Primary
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
 

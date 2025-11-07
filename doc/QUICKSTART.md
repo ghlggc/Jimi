@@ -254,7 +254,7 @@ agent:
   ├── config.yaml        主配置
   └── providers.yaml     LLM 提供商配置
 
-~/.kimi-cli/            运行时数据
+~/.jimi/            运行时数据
   ├── sessions/         会话历史
   └── logs/            日志文件
     └── jimi.log       应用日志

@@ -723,7 +723,7 @@ cp src/main/resources/providers-config-examples.yaml ~/.config/jimi/providers.ya
 ./jimi --debug -w /path/to/project
 
 # 查看日志文件
-tail -f ~/.kimi-cli/logs/jimi.log
+tail -f ~/.jimi/logs/jimi.log
 ```
 
 ### Q8: 会话历史在哪里
@@ -733,10 +733,10 @@ tail -f ~/.kimi-cli/logs/jimi.log
 **解决方案**:
 ```bash
 # 会话文件位置
-~/.kimi-cli/sessions/
+~/.jimi/sessions/
 
 # 清理会话
-rm -rf ~/.kimi-cli/sessions/*
+rm -rf ~/.jimi/sessions/*
 
 # 或在 Shell 中使用 /reset 命令
 ```

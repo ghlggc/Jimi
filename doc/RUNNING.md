@@ -7,7 +7,7 @@
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
 
 # 进入项目目录
-cd /Users/yefei.yf/Qoder/kimi-cli/jimi
+cd /Users/yefei.yf/Qoder/jimi/jimi
 
 # 构建项目（包含所有依赖）
 mvn clean package

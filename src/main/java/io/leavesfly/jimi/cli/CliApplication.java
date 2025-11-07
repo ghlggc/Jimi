@@ -35,7 +35,7 @@ import java.util.Optional;
         mixinStandardHelpOptions = true,
         version = "0.1.0"
 )
-public class CliApplication implements CommandLineRunner {
+public class CliApplication implements CommandLineRunner, Runnable {
 
     private final ConfigLoader configLoader;
     private final SessionManager sessionManager;
@@ -90,11 +90,15 @@ public class CliApplication implements CommandLineRunner {
         if (exitCode != 0) {
             System.exit(exitCode);
         }
+    }
 
-        // 如果有实际参数，执行主逻辑
-        if (args.length > 0) {
-            executeMain();
-        }
+    /**
+     * Picocli 的 Runnable 接口实现
+     * 当命令行参数解析完成后，Picocli 会调用此方法执行主逻辑
+     */
+    @Override
+    public void run() {
+        executeMain();
     }
 
     private void executeMain() {

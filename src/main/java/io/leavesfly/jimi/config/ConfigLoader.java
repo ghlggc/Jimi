@@ -1,16 +1,16 @@
 package io.leavesfly.jimi.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.leavesfly.jimi.exception.ConfigException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 配置加载服务
@@ -20,8 +20,7 @@ import java.util.Map;
 @Service
 public class ConfigLoader {
 
-    private static final String CONFIG_FILE_NAME = "config.json";
-    private static final String KIMI_CLI_DIR = ".jimi";
+    private static final String RESOURCE_CONFIG_PATH = ".jimi/config.json";
 
     private final ObjectMapper objectMapper;
 
@@ -34,7 +33,7 @@ public class ConfigLoader {
      */
     public Path getConfigFilePath() {
         String userHome = System.getProperty("user.home");
-        return Paths.get(userHome, KIMI_CLI_DIR, CONFIG_FILE_NAME);
+        return Paths.get(userHome, RESOURCE_CONFIG_PATH);
     }
 
     /**
@@ -81,8 +80,7 @@ public class ConfigLoader {
             Files.createDirectories(configFile.getParent());
 
             // 写入配置文件
-            objectMapper.writerWithDefaultPrettyPrinter()
-                    .writeValue(configFile.toFile(), config);
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(configFile.toFile(), config);
 
             log.info("Config saved to: {}", configFile);
         } catch (IOException e) {
@@ -92,76 +90,23 @@ public class ConfigLoader {
 
     /**
      * 获取默认内置配置
+     * 从 resources/.jimi/config.json 加载
      */
     public JimiConfig getDefaultConfig() {
         try {
-            var resource = getClass().getClassLoader().getResourceAsStream(CONFIG_FILE_NAME);
+            URL resource = getClass().getClassLoader().getResource(RESOURCE_CONFIG_PATH);
+
             if (resource != null) {
-                log.debug("Loading default config from classpath: {}", CONFIG_FILE_NAME);
+                log.debug("Loading default config from classpath: {}", RESOURCE_CONFIG_PATH);
                 return objectMapper.readValue(resource, JimiConfig.class);
             }
         } catch (IOException e) {
             log.warn("Failed to load default config from classpath: {}", e.getMessage());
         }
 
-        // 如果类路径中没有配置文件，返回硬编码的默认配置
-        log.debug("Using hardcoded default config");
-        return createHardcodedDefaultConfig();
+        throw new ConfigException("Failed to load default config from classpath: " + RESOURCE_CONFIG_PATH);
+
     }
 
-    /**
-     * 创建硬编码的默认配置
-     */
-    private JimiConfig createHardcodedDefaultConfig() {
-        // 创建 Qwen 提供商配置
-        LLMProviderConfig qwenProvider = LLMProviderConfig.builder()
-                .type(LLMProviderConfig.ProviderType.QWEN)
-                .baseUrl("https://dashscope.aliyuncs.com/compatible-mode/v1")
-                .apiKey("")
-                .build();
-
-        // 创建 Ollama 提供商配置
-        LLMProviderConfig ollamaProvider = LLMProviderConfig.builder()
-                .type(LLMProviderConfig.ProviderType.OLLAMA)
-                .baseUrl("http://localhost:11434")
-                .apiKey("")
-                .build();
-
-        // 创建 Qwen 模型配置
-        LLMModelConfig qwenModel = LLMModelConfig.builder()
-                .provider("qwen")
-                .model("qwen-max")
-                .maxContextSize(32000)
-                .build();
-
-        // 创建 Ollama 模型配置
-        LLMModelConfig ollamaModel = LLMModelConfig.builder()
-                .provider("ollama")
-                .model("qwen2.5-coder:32b")
-                .maxContextSize(32768)
-                .build();
-
-        // 创建循环控制配置
-        LoopControlConfig loopControl = LoopControlConfig.builder()
-                .maxStepsPerRun(10)
-                .maxRetriesPerStep(3)
-                .build();
-
-        // 构建完整配置
-        Map<String, LLMProviderConfig> providers = new HashMap<>();
-        providers.put("qwen", qwenProvider);
-        providers.put("ollama", ollamaProvider);
-
-        Map<String, LLMModelConfig> models = new HashMap<>();
-        models.put("qwen-max", qwenModel);
-        models.put("qwen2.5-coder:32b", ollamaModel);
-
-        return JimiConfig.builder()
-                .defaultModel("qwen-max")
-                .providers(providers)
-                .models(models)
-                .loopControl(loopControl)
-                .build();
-    }
 
 }

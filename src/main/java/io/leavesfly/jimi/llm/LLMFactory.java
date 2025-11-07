@@ -131,13 +131,15 @@ public class LLMFactory {
             throw new ConfigException("Provider not found in config: " + modelConfig.getProvider());
         }
 
-        String apiKey = providerConfig.getApiKey();
+        String apiKey = resolveApiKey(providerConfig);
         String baseUrl = providerConfig.getBaseUrl();
         String model = modelConfig.getModel();
 
-        if (apiKey == null || apiKey.isEmpty()) {
-            log.warn("No API key configured for model: {}", modelName);
-            return null;
+        if (apiKey == null || apiKey.isEmpty() || "xxxx".equals(apiKey)) {
+            log.error("No valid API key configured for model '{}'. " +
+                    "Please set API key in config file or environment variable: {}_API_KEY",
+                    modelName, providerConfig.getType().toString().toUpperCase());
+            throw new ConfigException("Missing API key for provider: " + providerConfig.getType());
         }
 
         // 创建带环境变量覆盖的 provider config
@@ -218,5 +220,34 @@ public class LLMFactory {
             stats.missCount(),
             stats.evictionCount()
         );
+    }
+
+    /**
+     * 解析 API Key，优先使用环境变量
+     * 支持的环境变量格式: {PROVIDER_TYPE}_API_KEY
+     * 例如: QWEN_API_KEY, KIMI_API_KEY, DEEPSEEK_API_KEY 等
+     */
+    private String resolveApiKey(LLMProviderConfig providerConfig) {
+        // 获取配置文件中的 API Key
+        String configApiKey = providerConfig.getApiKey();
+        
+        // 构建环境变量名称
+        String envVarName = providerConfig.getType().toString().toUpperCase() + "_API_KEY";
+        String envApiKey = System.getenv(envVarName);
+        
+        // 优先使用环境变量，如果环境变量不存在或为空，则使用配置文件中的值
+        if (envApiKey != null && !envApiKey.isEmpty()) {
+            log.debug("Using API key from environment variable: {}", envVarName);
+            return envApiKey;
+        }
+        
+        // 如果配置文件中的值是占位符，返回 null
+        if ("xxxx".equals(configApiKey) || configApiKey == null || configApiKey.isEmpty()) {
+            log.debug("No valid API key found in config for provider: {}", providerConfig.getType());
+            return null;
+        }
+        
+        log.debug("Using API key from config file for provider: {}", providerConfig.getType());
+        return configApiKey;
     }
 }

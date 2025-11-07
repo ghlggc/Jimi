@@ -5,11 +5,13 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.leavesfly.jimi.exception.AgentSpecException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Mono;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 
 import java.io.IOException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,9 +37,10 @@ class AgentSpecLoader {
      * 默认 Agent 文件路径（相对于 agents 目录）
      */
     private static final Path DEFAULT_AGENT_RELATIVE_PATH =
-            Paths.get("defalut", "agent.yaml");
+            Paths.get("default", "agent.yaml");
 
     @Autowired
+    @Qualifier("yamlObjectMapper")
     private ObjectMapper yamlObjectMapper;
 
 
@@ -59,7 +62,7 @@ class AgentSpecLoader {
     private static Path getAgentsDir() {
         // 尝试从类路径获取agents目录
         try {
-            var resource = AgentSpecLoader.class.getClassLoader().getResource("agents");
+            URL resource = AgentSpecLoader.class.getClassLoader().getResource("agents");
             if (resource != null) {
                 return Paths.get(resource.toURI());
             }
@@ -226,9 +229,7 @@ class AgentSpecLoader {
      */
     public Path getDefaultAgentPath() {
         // 尝试多个可能的位置
-        List<Path> candidates = List.of(
-                agentsRootDir.resolve(DEFAULT_AGENT_RELATIVE_PATH)
-        );
+        List<Path> candidates = List.of(agentsRootDir.resolve(DEFAULT_AGENT_RELATIVE_PATH));
 
         for (Path candidate : candidates) {
             if (Files.exists(candidate)) {

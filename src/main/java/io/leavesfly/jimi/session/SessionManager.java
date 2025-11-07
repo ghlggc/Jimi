@@ -129,7 +129,7 @@ public class SessionManager {
     
     private Path getMetadataPath() {
         String userHome = System.getProperty("user.home");
-        return Paths.get(userHome, ".kimi-cli", METADATA_FILE);
+        return Paths.get(userHome, ".jimi", METADATA_FILE);
     }
     
     private WorkDirMetadata findOrCreateWorkDirMetadata(Metadata metadata, Path workDir) {
