@@ -278,11 +278,14 @@ public class KimiChatProvider implements ChatProvider {
             }
             
             // 处理内容增量
-            if (delta.has("content")) {
-                return ChatCompletionChunk.builder()
-                    .type(ChatCompletionChunk.ChunkType.CONTENT)
-                    .contentDelta(delta.get("content").asText())
-                    .build();
+            if (delta.has("content") && !delta.get("content").isNull()) {
+                String contentDelta = delta.get("content").asText();
+                if (contentDelta != null && !contentDelta.isEmpty()) {
+                    return ChatCompletionChunk.builder()
+                        .type(ChatCompletionChunk.ChunkType.CONTENT)
+                        .contentDelta(contentDelta)
+                        .build();
+                }
             }
             
             // 处理工具调用

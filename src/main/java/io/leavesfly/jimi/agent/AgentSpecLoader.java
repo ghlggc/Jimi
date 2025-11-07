@@ -198,6 +198,11 @@ class AgentSpecLoader {
             builder.excludeTools((List<String>) data.get("exclude_tools"));
         }
 
+        // 处理模型名称
+        if (data.containsKey("model")) {
+            builder.model((String) data.get("model"));
+        }
+
         // 处理子Agent
         if (data.containsKey("subagents")) {
             Map<String, SubagentSpec> subagents = new HashMap<>();

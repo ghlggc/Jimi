@@ -344,6 +344,12 @@ public class ShellUI implements AutoCloseable {
             return;
         }
         
+        // 防止输出字符串 "null"
+        if ("null".equals(text)) {
+            log.warn("Received 'null' string as content, ignoring");
+            return;
+        }
+        
         // 标记输出已开始
         if (!assistantOutputStarted.getAndSet(true)) {
             // 第一次输出，添加提示

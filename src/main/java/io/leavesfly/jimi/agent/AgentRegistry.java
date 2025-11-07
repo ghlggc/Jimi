@@ -87,7 +87,12 @@ public class AgentRegistry {
                 }
 
                 // 构建Agent实例
-                Agent agent = Agent.builder().name(spec.getName()).systemPrompt(systemPrompt).tools(tools).build();
+                Agent agent = Agent.builder()
+                        .name(spec.getName())
+                        .systemPrompt(systemPrompt)
+                        .model(spec.getModel())
+                        .tools(tools)
+                        .build();
 
 
                 return Mono.just(agent);

@@ -183,10 +183,10 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
      * Ollama 部分模型不支持，需要特殊处理
      */
     private boolean supportsTools() {
-        // Ollama 默认不支持工具调用
-        if ("Ollama".equals(providerName)) {
-            return false;
-        }
+        // // Ollama 默认不支持工具调用
+        // if ("Ollama".equals(providerName)) {
+        //     return false;
+        // }
         return true;
     }
 
@@ -290,7 +290,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                         .type(ChatCompletionChunk.ChunkType.DONE);
 
                 // 解析使用统计
-                if (chunk.has("usage")) {
+                if (chunk.has("usage") && !chunk.get("usage").isNull()) {
                     JsonNode usageNode = chunk.get("usage");
                     builder.usage(ChatCompletionResult.Usage.builder()
                             .promptTokens(usageNode.get("prompt_tokens").asInt())
@@ -303,11 +303,14 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
             }
 
             // 处理内容增量
-            if (delta.has("content")) {
-                return ChatCompletionChunk.builder()
-                        .type(ChatCompletionChunk.ChunkType.CONTENT)
-                        .contentDelta(delta.get("content").asText())
-                        .build();
+            if (delta.has("content") && !delta.get("content").isNull()) {
+                String contentDelta = delta.get("content").asText();
+                if (contentDelta != null && !contentDelta.isEmpty()) {
+                    return ChatCompletionChunk.builder()
+                            .type(ChatCompletionChunk.ChunkType.CONTENT)
+                            .contentDelta(contentDelta)
+                            .build();
+                }
             }
 
             // 处理工具调用

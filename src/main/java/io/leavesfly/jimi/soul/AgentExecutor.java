@@ -190,7 +190,7 @@ public class AgentExecutor {
                     )
                     .reduce(new StreamAccumulator(), (acc, chunk) -> {
                         // 处理流式数据块
-                        if (chunk.getType() == ChatCompletionChunk.ChunkType.CONTENT && chunk.getContentDelta() != null) {
+                        if (chunk.getType() == ChatCompletionChunk.ChunkType.CONTENT && chunk.getContentDelta() != null && !chunk.getContentDelta().isEmpty()) {
                             // 累积文本内容
                             acc.contentBuilder.append(chunk.getContentDelta());
                             // 发送到Wire以实时显示

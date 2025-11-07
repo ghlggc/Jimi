@@ -8,6 +8,9 @@ system_prompt: system_prompt.md
 # 系统提示词参数
 system_prompt_args: {}
 
+# 指定模型（可选，如果不指定则使用全局默认模型）
+model: qwen3-Coder-Plus
+
 # 可用工具（专注于代码编写）
 tools:
   - ReadFile       # 读取源代码

@@ -67,7 +67,7 @@ public class JimiFactory {
      *
      * @param session        会话对象
      * @param agentSpecPath  Agent 规范文件路径（可选，null 表示使用默认 agent）
-     * @param modelName      模型名称（可选，null 表示使用配置文件默认值）
+     * @param modelName      模型名称（可选，null 表示使用 Agent 配置或默认模型）
      * @param yolo           是否启用 YOLO 模式（自动批准所有操作）
      * @param mcpConfigFiles MCP 配置文件列表（可选）
      * @return JimiSoul 实例的 Mono
@@ -83,10 +83,20 @@ public class JimiFactory {
             try {
                 log.debug("Creating Jimi Soul for session: {}", session.getId());
 
-                // 1. 获取或创建 LLM（使用工厂，带缓存）
-                LLM llm = llmFactory.getOrCreateLLM(modelName);
+                // 1. 加载 Agent 规范（优先加载以获取可能的 model 配置）
+                AgentSpec agentSpec = agentRegistry.loadAgentSpec(agentSpecPath).block();
 
-                // 2. 创建 Runtime 依赖
+                // 2. 决定最终使用的模型（优先级：命令行参数 > Agent配置 > 全局默认配置）
+                String effectiveModelName = modelName;
+                if (effectiveModelName == null && agentSpec.getModel() != null) {
+                    effectiveModelName = agentSpec.getModel();
+                    log.info("使用Agent配置的模型: {}", effectiveModelName);
+                }
+
+                // 3. 获取或创建 LLM（使用工厂，带缓存）
+                LLM llm = llmFactory.getOrCreateLLM(effectiveModelName);
+
+                // 4. 创建 Runtime 依赖
                 Approval approval = new Approval(yolo);
 
                 BuiltinSystemPromptArgs builtinArgs = createBuiltinArgs(session);
@@ -99,10 +109,7 @@ public class JimiFactory {
                         .builtinArgs(builtinArgs)
                         .build();
 
-                // 3. 加载 Agent 规范和 Agent 实例
-                AgentSpec agentSpec = agentRegistry.loadAgentSpec(agentSpecPath).block();
-
-                // 使用 AgentRegistry 单例加载 Agent（包含系统提示词处理）
+                // 5. 使用 AgentRegistry 单例加载 Agent（包含系统提示词处理）
                 Agent agent = agentSpecPath != null
                         ? agentRegistry.loadAgent(agentSpecPath, runtime).block()
                         : agentRegistry.loadDefaultAgent(runtime).block();
@@ -110,17 +117,17 @@ public class JimiFactory {
                     throw new RuntimeException("Failed to load agent");
                 }
 
-                // 4. 创建 Context 并恢复历史
+                // 6. 创建 Context 并恢复历史
                 // 注意：可以通过 new Context(file, mapper, true) 启用异步批量Repository以提升性能
                 Context context = new Context(session.getHistoryFile(), objectMapper);
 
-                // 5. 创建 ToolRegistry（包含 Task 工具和 MCP 工具）
+                // 7. 创建 ToolRegistry（包含 Task 工具和 MCP 工具）
                 ToolRegistry toolRegistry = createToolRegistry(builtinArgs, approval, agentSpec, runtime, mcpConfigFiles);
 
-                // 6. 创建 JimiSoul（注入 Compaction）
+                // 8. 创建 JimiSoul（注入 Compaction）
                 JimiSoul soul = new JimiSoul(agent, runtime, context, toolRegistry, objectMapper, new WireImpl(), compaction);
 
-                // 7. 恢复上下文历史
+                // 9. 恢复上下文历史
                 return context.restore()
                         .then(Mono.just(soul))
                         .doOnSuccess(s -> log.info("Jimi Soul created successfully"));

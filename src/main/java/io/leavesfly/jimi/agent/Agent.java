@@ -42,6 +42,12 @@ public class Agent {
     private String systemPrompt;
     
     /**
+     * 指定的模型名称（可选）
+     * 如果设置，则优先使用此模型，否则使用全局配置的默认模型
+     */
+    private String model;
+    
+    /**
      * 工具列表（工具类的完整类名）
      */
     @Builder.Default

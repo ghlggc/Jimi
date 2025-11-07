@@ -55,7 +55,7 @@ public class ConfigLoader {
             log.debug("No config file found, creating default config");
             config = getDefaultConfig();
             try {
-                saveConfig(config, configFile);
+//                saveConfig(config, configFile);
             } catch (ConfigException e) {
                 log.warn("Failed to save default config: {}", e.getMessage());
             }

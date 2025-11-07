@@ -53,6 +53,13 @@ public class AgentSpec {
     private List<String> excludeTools;
     
     /**
+     * 指定的模型名称（可选）
+     * 如果设置，则优先使用此模型，否则使用全局配置的默认模型
+     */
+    @JsonProperty("model")
+    private String model;
+    
+    /**
      * 子Agent配置
      */
     @JsonProperty("subagents")
