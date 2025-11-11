@@ -11,7 +11,7 @@
     <packaging>jar</packaging>
 
     <name>Jimi</name>
-    <description>Java Implementation of Moonshot Intelligence - A CLI agent for software development</description>
+    <description> A AI CLI agent for software development</description>
 
     <properties>
         <java.version>17</java.version>
