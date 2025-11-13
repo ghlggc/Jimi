@@ -118,9 +118,19 @@ public class AgentExecutor {
      */
     public Mono<Void> execute(List<ContentPart> userInput) {
         return Mono.defer(() -> {
-            // 创建检查点 0
+            // 创建用户消息
+            Message userMessage = Message.user(userInput);
+            
+            // 估算用户输入的Token数（因为用户输入不会有LLM返回的usage）
+            int userInputTokens = estimateTokensFromMessage(userMessage);
+            int newTokenCount = context.getTokenCount() + userInputTokens;
+            
+            // 创建检查点 0，添加用户消息，并更新Token计数
             return context.checkpoint(false)
-                    .flatMap(checkpointId -> context.appendMessage(Message.user(userInput)))
+                    .then(context.appendMessage(userMessage))
+                    .then(context.updateTokenCount(newTokenCount))
+                    .doOnSuccess(v -> log.debug("Added user input: {} tokens (total: {})", 
+                            userInputTokens, newTokenCount))
                     .then(agentLoop())
                     .doOnSuccess(v -> log.info("Agent execution completed"))
                     .doOnError(e -> log.error("Agent execution failed", e));
@@ -298,6 +308,9 @@ public class AgentExecutor {
             LLM llm = runtime.getLlm();
             List<Object> toolSchemas = new ArrayList<>(toolRegistry.getToolSchemas(agent.getTools()));
 
+            // 记录调用前的Token数(用于计算本次调用的实际消耗)
+            int tokensBefore = context.getTokenCount();
+            
             return llm.getChatProvider()
                     .generateStream(agent.getSystemPrompt(), context.getHistory(), toolSchemas)
                     .reduce(new StreamAccumulator(), this::processStreamChunk)
@@ -353,9 +366,23 @@ public class AgentExecutor {
      */
     private Mono<Boolean> handleStreamCompletion(StreamAccumulator acc) {
         Message assistantMessage = buildMessageFromAccumulator(acc);
-        Mono<Void> updateTokens = acc.usage != null
-                ? context.updateTokenCount(acc.usage.getTotalTokens())
-                : Mono.empty();
+        
+        // Token 计数更新：累加而不是替换
+        Mono<Void> updateTokens;
+        if (acc.usage != null) {
+            // LLM返回了usage信息，累加到现有Token数
+            int newTotalTokens = context.getTokenCount() + acc.usage.getTotalTokens();
+            updateTokens = context.updateTokenCount(newTotalTokens);
+            log.debug("Updated token count: {} + {} = {}", 
+                    context.getTokenCount(), acc.usage.getTotalTokens(), newTotalTokens);
+        } else {
+            // LLM未返回usage信息，使用字符数估算(字符数/4)
+            int estimatedTokens = estimateTokensFromMessage(assistantMessage);
+            int newTotalTokens = context.getTokenCount() + estimatedTokens;
+            updateTokens = context.updateTokenCount(newTotalTokens);
+            log.debug("Estimated token count (no usage from LLM): {} + {} = {}", 
+                    context.getTokenCount(), estimatedTokens, newTotalTokens);
+        }
 
         return updateTokens
                 .then(context.appendMessage(assistantMessage))
@@ -550,16 +577,14 @@ public class AgentExecutor {
         int contentLength = content.length();
         int toolCallsCount = acc.toolCalls.size();
 
-//        // 简化日志，避免打印过长内容
-//        log.info("构建Assistant消息: content_length={}, toolCalls_count={}", contentLength, toolCallsCount);
-//
-//        // 详细内容使用 debug 级别
-//        if (log.isDebugEnabled() && contentLength > 0) {
-//            String contentPreview = contentLength > 100
-//                    ? content.substring(0, 100) + "... (截断)"
-//                    : content;
-//            log.debug("Assistant内容预览: {}", contentPreview);
-//        }
+        // 添加调试日志，显示消息构建详情
+        log.debug("构建Assistant消息: content_length={}, toolCalls_count={}", contentLength, toolCallsCount);
+        if (log.isDebugEnabled() && contentLength > 0) {
+            String contentPreview = contentLength > 100
+                    ? content.substring(0, 100) + "... (截断)"
+                    : content;
+            log.debug("Assistant内容预览: {}", contentPreview);
+        }
 
         List<ToolCall> validToolCalls = toolCallFilter.filterValid(acc.toolCalls);
         log.info("过滤后有效工具调用数量: {} (原始: {})", validToolCalls.size(), acc.toolCalls.size());
@@ -727,5 +752,45 @@ public class AgentExecutor {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * 从消息估算Token数量（回退机制）
+     * 当LLM未返回usage信息时，使用字符数除以4的方式估算
+     * 
+     * @param message 要估算的消息
+     * @return 估算的Token数量
+     */
+    private int estimateTokensFromMessage(Message message) {
+        int charCount = 0;
+        
+        // 估算内容部分的字符数 - 使用getTextContent()可以处理String和List<ContentPart>两种情况
+        String textContent = message.getTextContent();
+        if (textContent != null && !textContent.isEmpty()) {
+            charCount += textContent.length();
+        }
+        
+        // 估算工具调用的字符数
+        if (message.getToolCalls() != null) {
+            for (ToolCall toolCall : message.getToolCalls()) {
+                if (toolCall.getId() != null) {
+                    charCount += toolCall.getId().length();
+                }
+                if (toolCall.getFunction() != null) {
+                    FunctionCall function = toolCall.getFunction();
+                    if (function.getName() != null) {
+                        charCount += function.getName().length();
+                    }
+                    if (function.getArguments() != null) {
+                        charCount += function.getArguments().length();
+                    }
+                }
+            }
+        }
+        
+        // 使用字符数除以4作为Token数估算（通用经验值）
+        int estimatedTokens = (int) Math.ceil(charCount / 4.0);
+        log.debug("Estimated {} tokens from {} characters", estimatedTokens, charCount);
+        return estimatedTokens;
     }
 }
