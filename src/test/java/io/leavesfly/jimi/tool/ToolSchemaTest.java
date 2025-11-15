@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.leavesfly.jimi.tool.bash.Bash;
 import io.leavesfly.jimi.tool.file.ReadFile;
+import io.leavesfly.jimi.tool.file.StrReplaceFile;
 import io.leavesfly.jimi.tool.file.WriteFile;
 import io.leavesfly.jimi.tool.think.Think;
 
@@ -27,7 +28,8 @@ public class ToolSchemaTest {
         registry.register(new ReadFile());
         registry.register(new Bash());
         registry.register(new Think());
-        
+        registry.register(new StrReplaceFile());
+
         // 获取 JSON Schema (传入 null 获取所有工具的 schema)
         java.util.List<JsonNode> schemaList = registry.getToolSchemas(null);
         

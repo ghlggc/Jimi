@@ -209,7 +209,7 @@ class ArgumentsNormalizerTest {
     @DisplayName("测试真实值场景 - 三层嵌套null后缀")
     void testRealValueTripleNestedNullSuffix() {
         // 这是真实的字符串值，不是Java字面值
-        // 真实值: "{\"command\": \"mvn -version\", \"timeout\": 10}"null"null
+        // 真实值: "{\"command\": \"mvn -version\", \"timeout\": 10}\"null\"null
         String input = "\"{\\\"command\\\": \\\"mvn -version\\\", \\\"timeout\\\": 10}\\\"null\"null";
         
         String result = ArgumentsNormalizer.normalizeToValidJson(input, objectMapper);
@@ -236,5 +236,60 @@ class ArgumentsNormalizerTest {
         assertTrue(result.contains("command"), "应该包含command字段");
         assertTrue(result.contains("mvn -version"), "应该包含mvn -version");
         assertTrue(result.contains("timeout"), "应该包含timeout字段");
+    }
+
+    @Test
+    @DisplayName("测试字段值为字符串形式的JSON数组 - edits字段")
+    void testJsonFieldValueAsString() {
+        // 模拟实际错误场景：edits 字段的值是一个字符串形式的 JSON 数组
+        String input = "{\"path\": \"/Users/yefei.yf/Jimi/tank/src/main/java/com/tetris/TetrisGame.java\", \"edits\": \"\n[{\\\"old\\\": \\\"test\\\", \\\"newText\\\": \\\"updated\\\", \\\"replaceAll\\\": false}]\n\"}";
+        
+        String result = ArgumentsNormalizer.normalizeToValidJson(input, objectMapper);
+        
+        System.out.println("======= JSON字段值为字符串测试 =======");
+        System.out.println("原始输入: " + input);
+        System.out.println("处理结果: " + result);
+        System.out.println("=============================");
+        
+        // 验证结果是有效的JSON对象
+        assertTrue(result.startsWith("{"), "应该是JSON对象格式");
+        assertTrue(result.endsWith("}"), "应该以}结尾");
+        
+        // 验证可以被解析
+        assertDoesNotThrow(() -> {
+            var tree = objectMapper.readTree(result);
+            var editsNode = tree.get("edits");
+            // 验证 edits 字段应该是一个数组，而不是字符串
+            assertTrue(editsNode.isArray(), "edits字段应该被解析为数组");
+            assertEquals(1, editsNode.size(), "edits数组应该包含1个元素");
+            
+            var editNode = editsNode.get(0);
+            assertTrue(editNode.isObject(), "edit元素应该是对象");
+            assertTrue(editNode.has("old"), "应该包含old字段");
+            assertTrue(editNode.has("newText"), "应该包含newText字段");
+            assertTrue(editNode.has("replaceAll"), "应该包含replaceAll字段");
+        });
+    }
+
+    @Test
+    @DisplayName("测试复杂的edits字段 - 完整实际案例")
+    void testComplexEditsFieldActualCase() {
+        // 实际错误中的简化版本
+        String input = "{\"path\": \"/Users/test/file.java\", \"edits\": \"[{\\\"old\\\": \\\"test text\\\", \\\"newText\\\": \\\"updated text\\\", \\\"replaceAll\\\": false}]\"}";
+        
+        String result = ArgumentsNormalizer.normalizeToValidJson(input, objectMapper);
+        
+        System.out.println("======= 复杂edits字段测试 =======");
+        System.out.println("原始输入: " + input);
+        System.out.println("处理结果: " + result);
+        System.out.println("=============================");
+        
+        // 验证可以被解析
+        assertDoesNotThrow(() -> {
+            var tree = objectMapper.readTree(result);
+            var editsNode = tree.get("edits");
+            assertTrue(editsNode.isArray(), "edits字段应该被解析为数组");
+            assertTrue(editsNode.size() > 0, "edits数组不应为空");
+        });
     }
 }

@@ -30,11 +30,12 @@ public class ArgumentsNormalizer {
      * 0. 校验 arguments 是否已经是合法的 JSON，如果是则直接返回
      * 1. 移除前后多余的 null
      * 2. 处理双重转义
-     * 3. 修复字符串值中未转义的引号
-     * 4. 修复缺失的引号
-     * 5. 修复不匹配的括号
-     * 6. 修复非法转义字符
-     * 7. 处理逗号分隔的参数
+     * 3. 处理字段值为字符串形式的 JSON（例如：{"edits": "[{...}]"} -> {"edits": [{...}]}）
+     * 4. 修复字符串值中未转义的引号
+     * 5. 修复缺失的引号
+     * 6. 修复不匹配的括号
+     * 7. 修复非法转义字符
+     * 8. 处理逗号分隔的参数
      *
      * @param arguments    原始参数字符串
      * @param objectMapper Jackson ObjectMapper 实例
@@ -64,19 +65,22 @@ public class ArgumentsNormalizer {
         // 步骤 2: 处理双重转义
         normalized = unescapeDoubleEscapedJsonSafe(normalized);
 
-        // 步骤 3: 修复字符串值中未转义的引号(必须在修复缺失引号之前)
+        // 步骤 3: 处理字段值为字符串形式的 JSON
+        normalized = unescapeJsonFieldValues(normalized, objectMapper);
+
+        // 步骤 4: 修复字符串值中未转义的引号(必须在修复缺失引号之前)
         normalized = escapeUnescapedQuotesInValues(normalized);
 
-        // 步骤 4: 修复缺失的引号
+        // 步骤 5: 修复缺失的引号
         normalized = fixMissingQuotes(normalized);
 
-        // 步骤 5: 修复不匹配的括号
+        // 步骤 6: 修复不匹配的括号
         normalized = fixUnbalancedBrackets(normalized);
 
-        // 步骤 6: 修复非法转义字符
+        // 步骤 7: 修复非法转义字符
         normalized = fixIllegalEscapes(normalized);
 
-        // 步骤 7: 处理逗号分隔的参数
+        // 步骤 8: 处理逗号分隔的参数
         normalized = convertCommaDelimitedToJsonSafe(normalized);
 
         return normalized;
@@ -101,6 +105,7 @@ public class ArgumentsNormalizer {
      * 特殊处理：
      * - 如果解析结果是一个字符串值，且该字符串看起来像 JSON，则还需要继续标准化
      * - 例如："{...}" 是合法的JSON字符串值，但我们需要解包成真正的JSON对象
+     * - 如果解析结果是一个对象，需要检查其字段值是否有字符串形式的 JSON
      *
      * @param json         待校验的字符串
      * @param objectMapper Jackson ObjectMapper 实例
@@ -124,6 +129,36 @@ public class ArgumentsNormalizer {
                 if (textValue.trim().startsWith("{") || textValue.trim().startsWith("[")) {
                     log.debug("JSON is a string value containing JSON-like content, needs normalization: {}", json);
                     return false;
+                }
+            }
+            
+            // 如果解析结果是一个对象，检查其字段值是否有字符串形式的 JSON
+            if (node.isObject()) {
+                com.fasterxml.jackson.databind.node.ObjectNode objectNode = 
+                    (com.fasterxml.jackson.databind.node.ObjectNode) node;
+                
+                // 遍历所有字段
+                var fields = objectNode.fields();
+                while (fields.hasNext()) {
+                    var entry = fields.next();
+                    JsonNode fieldValue = entry.getValue();
+                    
+                    log.info("Checking field '{}': isTextual={}, value={}", entry.getKey(), fieldValue.isTextual(), fieldValue);
+                    
+                    // 如果字段值是文本节点
+                    if (fieldValue.isTextual()) {
+                        String textValue = fieldValue.asText();
+                        String trimmedValue = textValue.trim();
+                        
+                        log.info("Field '{}' textValue: [{}], trimmedValue: [{}]", entry.getKey(), textValue, trimmedValue);
+                        
+                        // 检查是否是 JSON 数组或对象的字符串形式
+                        if ((trimmedValue.startsWith("[") && trimmedValue.endsWith("]")) ||
+                            (trimmedValue.startsWith("{") && trimmedValue.endsWith("}"))) {
+                            log.info("JSON object has field '{}' with JSON-like string value, needs normalization: {}", entry.getKey(), trimmedValue);
+                            return false;
+                        }
+                    }
                 }
             }
             
@@ -282,6 +317,70 @@ public class ArgumentsNormalizer {
                 log.warn("Unescaped quotes in JSON: {}", input);
                 return unescaped;
             }
+        }
+
+        return input;
+    }
+
+    /**
+     * 处理字段值为字符串形式的 JSON
+     * 例如: {"edits": "[{\"old\": \"...\"}]"} -> {"edits": [{"old": "..."}]}
+     * 这种情况通常出现在 LLM 将嵌套 JSON 对象/数组作为字符串传递时
+     */
+    private static String unescapeJsonFieldValues(String input, ObjectMapper objectMapper) {
+        // 只处理对象格式
+        if (!input.startsWith("{") || !input.endsWith("}")) {
+            return input;
+        }
+
+        try {
+            JsonNode rootNode = objectMapper.readTree(input);
+            if (!rootNode.isObject()) {
+                return input;
+            }
+
+            boolean modified = false;
+            com.fasterxml.jackson.databind.node.ObjectNode objectNode = 
+                (com.fasterxml.jackson.databind.node.ObjectNode) rootNode;
+
+            // 遍历所有字段
+            List<String> fieldsToProcess = new ArrayList<>();
+            objectNode.fieldNames().forEachRemaining(fieldsToProcess::add);
+
+            for (String fieldName : fieldsToProcess) {
+                JsonNode fieldValue = objectNode.get(fieldName);
+                
+                // 如果字段值是文本节点
+                if (fieldValue.isTextual()) {
+                    String textValue = fieldValue.asText();
+                    // 去除前后空白和换行符
+                    String trimmedValue = textValue.trim();
+                    
+                    // 检查是否是 JSON 数组或对象的字符串形式
+                    if ((trimmedValue.startsWith("[") && trimmedValue.endsWith("]")) ||
+                        (trimmedValue.startsWith("{") && trimmedValue.endsWith("}"))) {
+                        try {
+                            // 尝试解析为 JSON
+                            JsonNode parsedValue = objectMapper.readTree(trimmedValue);
+                            objectNode.set(fieldName, parsedValue);
+                            modified = true;
+                            log.info("Unescaped JSON field '{}': {} -> {}", 
+                                fieldName, textValue, parsedValue);
+                        } catch (Exception e) {
+                            log.debug("Field '{}' looks like JSON but failed to parse: {}", 
+                                fieldName, e.getMessage());
+                        }
+                    }
+                }
+            }
+
+            if (modified) {
+                String result = objectMapper.writeValueAsString(objectNode);
+                log.warn("Unescaped JSON field values: {} -> {}", input, result);
+                return result;
+            }
+        } catch (Exception e) {
+            log.debug("Failed to unescape JSON field values, using as-is: {}", e.getMessage());
         }
 
         return input;
