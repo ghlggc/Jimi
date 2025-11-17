@@ -638,34 +638,32 @@ public class AgentExecutor {
     }
 
     /**
-     * 执行工具调用
+     * 执行工具调用（串行执行）
      */
     private Mono<Void> executeToolCalls(List<ToolCall> toolCalls) {
-        log.info("Starting execution of {} tool calls", toolCalls.size());
+        log.info("Starting sequential execution of {} tool calls", toolCalls.size());
 
-        // 执行所有工具调用
-        List<Mono<Message>> toolResultMonos = new ArrayList<>();
-
-        for (int i = 0; i < toolCalls.size(); i++) {
-            final int toolIndex = i; // 必须是final类型供lambda使用
-            ToolCall toolCall = toolCalls.get(i);
-
-            Mono<Message> resultMono = executeToolCall(toolCall)
-                    .doOnError(e -> log.error("Tool call #{} failed", toolIndex, e))
-                    .onErrorResume(e -> {
-                        log.error("Caught error in tool call #{}, returning error message", toolIndex, e);
-                        String toolCallId = (toolCall != null && toolCall.getId() != null)
-                                ? toolCall.getId() : "unknown_" + toolIndex;
-                        return Mono.just(Message.tool(toolCallId,
-                                "Tool execution failed: " + e.getMessage()));
-                    });
-            toolResultMonos.add(resultMono);
-        }
-
-        // 等待所有工具执行完成，并添加结果到上下文
-        return Flux.merge(toolResultMonos)
+        // 串行执行所有工具调用
+        return Flux.fromIterable(toolCalls)
+                .index() // 添加索引用于日志记录
+                .concatMap(tuple -> {
+                    long toolIndex = tuple.getT1();
+                    ToolCall toolCall = tuple.getT2();
+                    
+                    log.info("Executing tool call #{}/{}", toolIndex + 1, toolCalls.size());
+                    
+                    return executeToolCall(toolCall)
+                            .doOnError(e -> log.error("Tool call #{} failed", toolIndex, e))
+                            .onErrorResume(e -> {
+                                log.error("Caught error in tool call #{}, returning error message", toolIndex, e);
+                                String toolCallId = (toolCall != null && toolCall.getId() != null)
+                                        ? toolCall.getId() : "unknown_" + toolIndex;
+                                return Mono.just(Message.tool(toolCallId,
+                                        "Tool execution failed: " + e.getMessage()));
+                            });
+                })
                 .collectList()
-                .doOnNext(results -> log.info("Collected {} tool results", results.size()))
+                .doOnNext(results -> log.info("Collected {} tool results after sequential execution", results.size()))
                 .flatMap(results -> {
                     // 批量添加工具结果消息
                     return context.appendMessage(results)

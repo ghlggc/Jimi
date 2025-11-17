@@ -131,17 +131,29 @@ public class Bash extends AbstractTool<Bash.Params> {
                 processBuilder.redirectErrorStream(true); // 合并 stdout 和 stderr
                 process = processBuilder.start();
                 
-                // 读取输出
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        builder.write(line + "\n");
+                // 在单独的线程中读取输出，避免阻塞
+                final Process finalProcess = process;
+                Thread outputReader = new Thread(() -> {
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(finalProcess.getInputStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            builder.write(line + "\n");
+                        }
+                    } catch (Exception e) {
+                        log.debug("Output reading interrupted: {}", e.getMessage());
                     }
-                }
+                });
+                outputReader.setDaemon(true);
+                outputReader.start();
                 
                 // 等待完成（带超时）
                 boolean completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+                
+                // 给输出读取线程一点时间完成
+                if (completed) {
+                    outputReader.join(1000); // 最多等待1秒读取剩余输出
+                }
                 
                 if (!completed) {
                     // 超时，强制结束进程
