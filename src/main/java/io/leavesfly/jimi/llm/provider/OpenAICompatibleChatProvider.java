@@ -9,7 +9,6 @@ import io.leavesfly.jimi.llm.ChatCompletionChunk;
 import io.leavesfly.jimi.llm.ChatCompletionResult;
 import io.leavesfly.jimi.llm.ChatProvider;
 import io.leavesfly.jimi.llm.RateLimiter;
-import io.leavesfly.jimi.llm.message.ContentPart;
 import io.leavesfly.jimi.llm.message.FunctionCall;
 import io.leavesfly.jimi.llm.message.Message;
 import io.leavesfly.jimi.llm.message.ToolCall;
@@ -39,11 +38,11 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
     private final ObjectMapper objectMapper;
     private final String providerName;
     private final RateLimiter rateLimiter;  // 限流器
-    
+
     // <think>标签解析状态（流式处理）
     private boolean insideThinkTag = false;
     private StringBuilder thinkTagBuffer = new StringBuilder();
-    
+
     // Kimi K2 thinking 模式检测
     private boolean isKimiThinkingMode = false;
     private boolean kimiFirstParagraphSent = false;
@@ -109,7 +108,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
             try {
                 // 应用限流
                 applyRateLimit();
-                
+
                 ObjectNode requestBody = buildRequestBody(systemPrompt, history, tools, false);
 
                 return webClient.post()
@@ -122,8 +121,8 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                         .onErrorResume(e -> {
                             if (e instanceof WebClientResponseException) {
                                 WebClientResponseException webEx =
-                                    (org.springframework.web.reactive.function.client.WebClientResponseException) e;
-                                log.error("{} API error: status={}, body={}", 
+                                        (org.springframework.web.reactive.function.client.WebClientResponseException) e;
+                                log.error("{} API error: status={}, body={}",
                                         providerName, webEx.getStatusCode(), webEx.getResponseBodyAsString());
                             } else {
                                 log.error("{} API error", providerName, e);
@@ -148,13 +147,13 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
             try {
                 // 应用限流
                 applyRateLimit();
-                
+
                 // 重置流式处理状态(每次新请求都重置)
                 insideThinkTag = false;
                 thinkTagBuffer = new StringBuilder();
                 isKimiThinkingMode = false;
                 kimiFirstParagraphSent = false;
-                
+
                 ObjectNode requestBody = buildRequestBody(systemPrompt, history, tools, true);
 
                 return webClient.post()
@@ -197,9 +196,9 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                         })
                         .onErrorResume(e -> {
                             if (e instanceof org.springframework.web.reactive.function.client.WebClientResponseException) {
-                                org.springframework.web.reactive.function.client.WebClientResponseException webEx = 
-                                    (org.springframework.web.reactive.function.client.WebClientResponseException) e;
-                                log.error("{} streaming API error: status={}, body={}", 
+                                org.springframework.web.reactive.function.client.WebClientResponseException webEx =
+                                        (org.springframework.web.reactive.function.client.WebClientResponseException) e;
+                                log.error("{} streaming API error: status={}, body={}",
                                         providerName, webEx.getStatusCode(), webEx.getResponseBodyAsString());
                             } else {
                                 log.error("{} streaming API error: {}", providerName, e.getMessage());
@@ -281,12 +280,12 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
         if (msg.getToolCalls() != null && !msg.getToolCalls().isEmpty()) {
             // 过滤掉无效的工具调用（id或name为空/null的）
             List<ToolCall> validToolCalls = msg.getToolCalls().stream()
-                    .filter(tc -> tc != null 
+                    .filter(tc -> tc != null
                             && tc.getId() != null && !tc.getId().isEmpty()
                             && tc.getFunction() != null
                             && tc.getFunction().getName() != null && !tc.getFunction().getName().isEmpty())
                     .toList();
-            
+
             if (!validToolCalls.isEmpty()) {
                 node.set("tool_calls", objectMapper.valueToTree(validToolCalls));
             }
@@ -331,10 +330,10 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
 
     private Message parseMessage(JsonNode messageNode) {
         String role = messageNode.get("role").asText();
-        
+
         // 处理推理内容（支持多种字段）和普通内容
         StringBuilder contentBuilder = new StringBuilder();
-        
+
         // 先添加推理内容（如果有）
         // 支持 reasoning_content (DeepSeek) 和 reasoning (Ollama)
         String reasoningContent = null;
@@ -343,11 +342,11 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
         } else if (messageNode.has("reasoning") && !messageNode.get("reasoning").isNull()) {
             reasoningContent = messageNode.get("reasoning").asText();
         }
-        
+
         if (reasoningContent != null && !reasoningContent.isEmpty()) {
             contentBuilder.append(reasoningContent);
         }
-        
+
         // 再添加普通内容（如果有）
         if (messageNode.has("content") && !messageNode.get("content").isNull()) {
             String content = messageNode.get("content").asText();
@@ -358,7 +357,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                 contentBuilder.append(content);
             }
         }
-        
+
         String finalContent = contentBuilder.length() > 0 ? contentBuilder.toString() : null;
 
         List<ToolCall> toolCalls = null;
@@ -387,7 +386,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
     private ChatCompletionChunk parseStreamChunk(String data) {
         try {
             JsonNode chunk = objectMapper.readTree(data);
-            
+
             // 检查 choices 是否存在且非空
             if (!chunk.has("choices") || chunk.get("choices").isNull() || chunk.get("choices").isEmpty()) {
                 log.warn("Stream chunk missing choices: {}", data);
@@ -396,7 +395,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                         .contentDelta("")
                         .build();
             }
-            
+
             JsonNode choice = chunk.get("choices").get(0);
             JsonNode delta = choice.get("delta");
 
@@ -420,7 +419,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
 
                 return builder.build();
             }
-            
+
             // 检查 delta 是否存在
             if (delta == null || delta.isNull()) {
                 return ChatCompletionChunk.builder()
@@ -448,10 +447,10 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
             // 注意：qwen3-next-80b-a3b-thinking 等模型也会将 reasoning_content 设为 null，
             // 但它们不使用 \n\n 分隔符，而是直接输出 content
             // 因此仅在之前已经确认是 Kimi 模式时才继续使用该模式
-            if (isKimiThinkingMode && hasReasoningContent && isReasoningContentNull && delta.has("content")) {
-//                log.debug("Continue Kimi K2 thinking mode (null reasoning_content field)");
-            }
-            
+//            if (isKimiThinkingMode && hasReasoningContent && isReasoningContentNull && delta.has("content")) {
+////                log.debug("Continue Kimi K2 thinking mode (null reasoning_content field)");
+//            }
+
             String reasoningField = null;
             if (delta.has("reasoning_content") && !delta.get("reasoning_content").isNull()) {
                 reasoningField = delta.get("reasoning_content").asText();
@@ -460,7 +459,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                 reasoningField = delta.get("reasoning").asText();
 //                log.debug("reasoning field: '{}'", reasoningField != null ? reasoningField : "null");
             }
-            
+
             if (reasoningField != null && !reasoningField.isEmpty()) {
 //                log.debug("Found reasoning content: {}", reasoningField.substring(0, Math.min(50, reasoningField.length())));
                 return ChatCompletionChunk.builder()
@@ -512,11 +511,11 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                     .build();
         }
     }
-    
+
     /**
      * 解析内容中的 <think> 标签
      * 支持流式处理,正确识别标签边界
-     * 
+     *
      * @param contentDelta 内容增量
      * @return 处理后的chunk
      */
@@ -524,7 +523,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
         // 将缓冲区和Delta合并后再处理
         thinkTagBuffer.append(contentDelta);
         String fullContent = thinkTagBuffer.toString();
-        
+
 //        log.debug("parseThinkTags: contentDelta='{}', insideThinkTag={}, bufferSize={}",
 //                contentDelta.length() > 100 ? contentDelta.substring(0, 100) + "..." : contentDelta,
 //                insideThinkTag,
@@ -533,10 +532,10 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
         StringBuilder processedContent = new StringBuilder();
         // 记录第一个实际字符的reasoning状态（而不是最后一个标签的状态）
         Boolean contentIsReasoning = null;
-        
+
         int i = 0;
         int lastProcessedIndex = 0; // 记录已处理的位置
-        
+
         while (i < fullContent.length()) {
             // 检查是否遇到<think>标签开始
             if (!insideThinkTag && fullContent.startsWith("<think>", i)) {
@@ -546,7 +545,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                 lastProcessedIndex = i;
                 continue;
             }
-            
+
             // 检查是否遇到</think>标签结束
             if (insideThinkTag && fullContent.startsWith("</think>", i)) {
 //                log.debug("Found </think> tag at position {}", i);
@@ -555,7 +554,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                 lastProcessedIndex = i;
                 continue;
             }
-            
+
             // 检查是否可能是部分标签(需要等待下一个chunk)
             if (i >= fullContent.length() - 8) {
                 // 剩余的字符不够组成完整标签,检查是否是标签的开头
@@ -568,7 +567,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                     break;
                 }
             }
-            
+
             // 添加普通字符
             processedContent.append(fullContent.charAt(i));
             // 记录第一个实际字符时的reasoning状态
@@ -578,7 +577,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
             lastProcessedIndex = i + 1;
             i++;
         }
-        
+
         // 更新缓冲区：保留未处理的部分
         if (lastProcessedIndex < fullContent.length()) {
             // 有未处理的部分（如部分标签），保留在缓冲区
@@ -588,7 +587,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
             // 所有内容都处理完毕，清空缓冲区
             thinkTagBuffer = new StringBuilder();
         }
-        
+
         // 如果没有实际内容(只有标签),返回空chunk
         if (processedContent.length() == 0) {
             return ChatCompletionChunk.builder()
@@ -596,7 +595,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                     .contentDelta("")
                     .build();
         }
-        
+
         // 返回处理后的内容,带上正确的reasoning标记（使用第一个字符时的状态）
         boolean isReasoning = contentIsReasoning != null && contentIsReasoning;
 //        log.debug("Returning chunk: content='{}', isReasoning={}, contentIsReasoning={}",
@@ -609,19 +608,19 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                 .isReasoning(isReasoning)
                 .build();
     }
-    
+
     /**
      * 解析 Kimi K2 thinking 模式的内容
      * Kimi K2 使用双换行 (\n\n) 分隔思考过程和正式回答
      * 第一个\n\n之前的内容为思考过程，之后的为正式回答
-     * 
+     *
      * @param contentDelta 内容增量
      * @return 处理后的chunk
      */
     private ChatCompletionChunk parseKimiThinkingContent(String contentDelta) {
         thinkTagBuffer.append(contentDelta);
         String fullContent = thinkTagBuffer.toString();
-        
+
 //        log.debug("parseKimiThinkingContent: contentDelta='{}', kimiFirstParagraphSent={}, bufferSize={}",
 //                contentDelta.length() > 50 ? contentDelta.substring(0, 50) + "..." : contentDelta,
 //                kimiFirstParagraphSent,
@@ -631,22 +630,22 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
         if (!kimiFirstParagraphSent) {
             // 查找双换行
             int doubleNewlinePos = fullContent.indexOf("\n\n");
-            
+
             if (doubleNewlinePos >= 0) {
                 // 找到了分隔符
                 String thinkingPart = fullContent.substring(0, doubleNewlinePos);
                 String remaining = fullContent.substring(doubleNewlinePos + 2);
-                
+
 //                log.debug("Found double newline, thinking part: '{}', remaining: '{}'",
 //                        thinkingPart.length() > 50 ? thinkingPart.substring(0, 50) + "..." : thinkingPart,
 //                        remaining.length() > 50 ? remaining.substring(0, 50) + "..." : remaining);
 
                 // 标记第一段已发送
                 kimiFirstParagraphSent = true;
-                
+
                 // 保留剩余内容
                 thinkTagBuffer = new StringBuilder(remaining);
-                
+
                 // 返回思考部分（标记为 reasoning）
                 if (!thinkingPart.isEmpty()) {
                     return ChatCompletionChunk.builder()
@@ -655,7 +654,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                             .isReasoning(true)
                             .build();
                 }
-                
+
                 // 如果思考部分为空，直接返回正式内容
                 if (!remaining.isEmpty()) {
                     thinkTagBuffer = new StringBuilder();
@@ -674,7 +673,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                         .build();
             }
         }
-        
+
         // 第一段已经发送，后面的全部是正式回答
         thinkTagBuffer = new StringBuilder();
         return ChatCompletionChunk.builder()
@@ -683,7 +682,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                 .isReasoning(false)
                 .build();
     }
-    
+
     /**
      * 应用限流（如果配置了）
      */
