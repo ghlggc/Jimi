@@ -1,0 +1,38 @@
+# Plan Agent 配置
+name: Plan-Agent
+description: 任务规划和分解专家，采用Plan-Execute模式进行工作
+
+# 系统提示词文件路径
+system_prompt: system_prompt.md
+
+# 系统提示词参数（可选）
+system_prompt_args: { }
+
+# 指定模型（规划任务使用更强的推理模型）
+model: qwen3-max
+
+# 可用工具列表（精简到规划所需的核心工具）
+tools:
+  - Think           # 深度思考和推理
+  - SetTodoList     # 任务清单管理
+  - ReadFile        # 读取文件了解上下文
+  - Glob            # 查找文件
+  - Grep            # 搜索代码
+  - SearchWeb       # 搜索技术信息
+  - FetchURL        # 获取网页内容
+  - Task            # 委托子Agent执行具体任务
+
+# 子 Agent 配置（规划后可委托给执行型Agent）
+subagents:
+  Code-Agent:
+    path: code/agent.yaml
+    description: 代码实现、重构和优化
+  Build-Agent:
+    path: build/agent.yaml
+    description: 构建和编译项目
+  Test-Agent:
+    path: test/agent.yaml
+    description: 运行测试并分析结果
+  Review-Agent:
+    path: review/agent.yaml
+    description: 代码质量审查

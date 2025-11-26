@@ -37,16 +37,28 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
     @AllArgsConstructor
     public static class Todo {
         /**
+         * 待办事项唯一标识（可选，用于精确匹配）
+         */
+        @JsonPropertyDescription("待办事项的唯一标识，用于精确更新和删除。如不提供则使用 title 匹配")
+        private String id;
+        
+        /**
          * 待办事项标题
          */
         @JsonPropertyDescription("待办事项的标题或名称")
         private String title;
         
         /**
-         * 待办事项状态：Pending, In Progress, Done
+         * 待办事项状态：Pending, In Progress, Done, Cancelled, Error
          */
-        @JsonPropertyDescription("待办事项的状态，可选值：'Pending'（待办）、'In Progress'（进行中）、'Done'（已完成）")
+        @JsonPropertyDescription("待办事项的状态，可选值：'Pending'（待办）、'In Progress'（进行中）、'Done'（已完成）、'Cancelled'（已取消）、'Error'（错误）")
         private String status;
+        
+        /**
+         * 父任务ID（用于子任务）
+         */
+        @JsonPropertyDescription("父任务的ID，用于创建子任务层级结构")
+        private String parentId;
     }
     
     /**
@@ -60,23 +72,30 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
         /**
          * 待办事项列表（基础列表）
          */
-        @JsonPropertyDescription("待办事项数组，每项包含 title 和 status 字段")
+        @JsonPropertyDescription("待办事项数组，每项包含 id/title 和 status 字段。支持批量提交 5-10+ 任务以提高性能")
         @Builder.Default
         private List<Todo> todos = new ArrayList<>();
         
         /**
-         * 对现有待办的状态更新（按标题匹配）
+         * 对现有待办的状态更新（按ID或标题匹配）
          */
-        @JsonPropertyDescription("需要更新状态的待办事项列表，根据 title 匹配并更新 status")
+        @JsonPropertyDescription("需要更新状态的待办事项列表，优先根据 id 匹配，否则根据 title 匹配并更新 status")
         @Builder.Default
         private List<Todo> updates = new ArrayList<>();
         
         /**
-         * 需要新增的待办项（当标题不存在时添加）
+         * 需要新增的待办项（当ID/标题不存在时添加）
          */
-        @JsonPropertyDescription("需要新增的待办事项列表，只当 title 不存在时才会添加")
+        @JsonPropertyDescription("需要新增的待办事项列表，只当 id/title 不存在时才会添加")
         @Builder.Default
         private List<Todo> adds = new ArrayList<>();
+        
+        /**
+         * 需要删除的待办项ID或标题列表
+         */
+        @JsonPropertyDescription("需要删除的待办事项的ID或标题列表")
+        @Builder.Default
+        private List<String> deletes = new ArrayList<>();
         
         /**
          * 是否移除已完成（Done）的待办
@@ -92,7 +111,30 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
         if (s.equalsIgnoreCase("pending")) return "Pending";
         if (s.equalsIgnoreCase("inprogress") || s.equalsIgnoreCase("in progress") || s.equalsIgnoreCase("in_progress")) return "In Progress";
         if (s.equalsIgnoreCase("done") || s.equalsIgnoreCase("completed") || s.equalsIgnoreCase("complete")) return "Done";
+        if (s.equalsIgnoreCase("cancelled") || s.equalsIgnoreCase("canceled")) return "Cancelled";
+        if (s.equalsIgnoreCase("error") || s.equalsIgnoreCase("failed")) return "Error";
         return "Pending";
+    }
+    
+    /**
+     * 根据ID或标题查找待办事项
+     */
+    private Todo findTodo(List<Todo> list, String idOrTitle) {
+        if (idOrTitle == null || idOrTitle.isBlank()) return null;
+        String key = idOrTitle.trim();
+        // 优先按ID匹配
+        for (Todo t : list) {
+            if (t.getId() != null && t.getId().equals(key)) {
+                return t;
+            }
+        }
+        // 其次按标题匹配
+        for (Todo t : list) {
+            if (t.getTitle() != null && t.getTitle().equals(key)) {
+                return t;
+            }
+        }
+        return null;
     }
     
     public SetTodoList() {
@@ -135,42 +177,68 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
                 for (Todo t : params.getTodos()) {
                     String title = (t != null && t.getTitle() != null) ? t.getTitle().trim() : "(未命名)";
                     String status = (t != null) ? normalizeStatus(t.getStatus()) : "Pending";
-                    list.add(Todo.builder().title(title).status(status).build());
+                    list.add(Todo.builder()
+                        .id(t != null ? t.getId() : null)
+                        .title(title)
+                        .status(status)
+                        .parentId(t != null ? t.getParentId() : null)
+                        .build());
                 }
             }
             
-            // 更新现有待办的状态（按标题匹配）
+            // 更新现有待办的状态（按ID或标题匹配）
             if (params != null && params.getUpdates() != null) {
                 for (Todo upd : params.getUpdates()) {
-                    if (upd == null || upd.getTitle() == null) continue;
-                    String title = upd.getTitle().trim();
-                    String newStatus = normalizeStatus(upd.getStatus());
-                    for (Todo t : list) {
-                        if (t.getTitle() != null && t.getTitle().equals(title)) {
-                            t.setStatus(newStatus);
-                            break;
+                    if (upd == null) continue;
+                    String key = upd.getId() != null ? upd.getId() : upd.getTitle();
+                    if (key == null) continue;
+                    
+                    Todo found = findTodo(list, key);
+                    if (found != null) {
+                        if (upd.getStatus() != null) {
+                            found.setStatus(normalizeStatus(upd.getStatus()));
+                        }
+                        if (upd.getTitle() != null) {
+                            found.setTitle(upd.getTitle().trim());
+                        }
+                        if (upd.getParentId() != null) {
+                            found.setParentId(upd.getParentId());
                         }
                     }
                 }
             }
             
-            // 添加新的待办（仅当标题不存在时添加）
+            // 添加新的待办（仅当ID/标题不存在时添加）
             if (params != null && params.getAdds() != null) {
                 for (Todo add : params.getAdds()) {
                     if (add == null || add.getTitle() == null) continue;
-                    String title = add.getTitle().trim();
-                    String status = normalizeStatus(add.getStatus());
-                    boolean exists = false;
-                    for (Todo t : list) {
-                        if (t.getTitle() != null && t.getTitle().equals(title)) {
-                            exists = true;
-                            break;
-                        }
-                    }
-                    if (!exists) {
-                        list.add(Todo.builder().title(title).status(status).build());
+                    String key = add.getId() != null ? add.getId() : add.getTitle();
+                    
+                    if (findTodo(list, key) == null) {
+                        list.add(Todo.builder()
+                            .id(add.getId())
+                            .title(add.getTitle().trim())
+                            .status(normalizeStatus(add.getStatus()))
+                            .parentId(add.getParentId())
+                            .build());
                     }
                 }
+            }
+            
+            // 删除指定的待办项
+            if (params != null && params.getDeletes() != null && !params.getDeletes().isEmpty()) {
+                list.removeIf(t -> {
+                    for (String key : params.getDeletes()) {
+                        if (key != null && !key.isBlank()) {
+                            String trimmedKey = key.trim();
+                            if ((t.getId() != null && t.getId().equals(trimmedKey)) ||
+                                (t.getTitle() != null && t.getTitle().equals(trimmedKey))) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                });
             }
             
             // 移除完成项
@@ -190,20 +258,32 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
                 return Mono.just(trb.ok("空的待办清单", "空列表"));
             }
             
-            int pending = 0, inProgress = 0, done = 0;
+            int pending = 0, inProgress = 0, done = 0, cancelled = 0, error = 0;
             for (Todo t : list) {
                 String s = normalizeStatus(t.getStatus());
                 switch (s) {
                     case "Pending": pending++; break;
                     case "In Progress": inProgress++; break;
                     case "Done": done++; break;
+                    case "Cancelled": cancelled++; break;
+                    case "Error": error++; break;
                     default: pending++; break;
                 }
-                trb.write(String.format("- %s [%s]\n", t.getTitle(), s));
+                String indent = t.getParentId() != null ? "  " : "";
+                String idStr = t.getId() != null ? "#" + t.getId() + " " : "";
+                trb.write(String.format("%s- %s%s [%s]\n", indent, idStr, t.getTitle(), s));
             }
             
-            String brief = String.format("共%d项：Pending %d, In Progress %d, Done %d", list.size(), pending, inProgress, done);
-            log.info("Todo list applied: size={}, pending={}, inProgress={}, done={}", list.size(), pending, inProgress, done);
+            StringBuilder briefBuilder = new StringBuilder();
+            briefBuilder.append(String.format("共%d项：", list.size()));
+            if (pending > 0) briefBuilder.append(String.format("Pending %d, ", pending));
+            if (inProgress > 0) briefBuilder.append(String.format("In Progress %d, ", inProgress));
+            if (done > 0) briefBuilder.append(String.format("Done %d, ", done));
+            if (cancelled > 0) briefBuilder.append(String.format("Cancelled %d, ", cancelled));
+            if (error > 0) briefBuilder.append(String.format("Error %d, ", error));
+            String brief = briefBuilder.toString().replaceAll(", $", "");
+            log.info("Todo list applied: size={}, pending={}, inProgress={}, done={}, cancelled={}, error={}", 
+                list.size(), pending, inProgress, done, cancelled, error);
             
             return Mono.just(trb.ok("待办清单已更新" , brief));
         });

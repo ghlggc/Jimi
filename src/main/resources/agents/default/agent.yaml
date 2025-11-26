@@ -44,6 +44,9 @@ tools:
 
 # 子 Agent 配置
 subagents:
+  Plan-Agent:
+    path: plan/agent.yaml
+    description: 任务规划和分解，采用Plan-Execute模式
   Design-Agent:
     path: design/agent.yaml
     description: 需求分析、架构设计和技术方案规划
