@@ -1,0 +1,61 @@
+# 示例: 快速构建命令
+# 位置: ~/.jimi/commands/quick-build.yaml
+
+name: "quick-build"
+description: "快速构建项目并运行测试"
+category: "build"
+priority: 10
+
+# 命令别名
+aliases:
+  - "qb"
+  - "build"
+
+# 用法说明
+usage: "/quick-build [--skip-tests]"
+
+# 参数定义
+parameters:
+  - name: "skip-tests"
+    type: "boolean"
+    defaultValue: "false"
+    description: "是否跳过测试"
+
+# 执行配置
+execution:
+  type: "script"
+  script: |
+    #!/bin/bash
+    set -e
+    
+    echo "🔨 开始构建项目..."
+    
+    if [ "$SKIP_TESTS" = "true" ]; then
+      echo "⏭️  跳过测试"
+      mvn clean install -DskipTests
+    else
+      echo "✅ 运行测试"
+      mvn clean install
+    fi
+    
+    echo "✨ 构建完成!"
+  
+  workingDir: "${JIMI_WORK_DIR}"
+  timeout: 300
+  environment:
+    MAVEN_OPTS: "-Xmx1024m"
+
+# 前置条件
+preconditions:
+  - type: "file_exists"
+    path: "pom.xml"
+    errorMessage: "当前目录不是 Maven 项目"
+  - type: "command_exists"
+    command: "mvn"
+    errorMessage: "Maven 未安装"
+
+# 是否需要审批
+requireApproval: false
+
+# 是否启用
+enabled: true

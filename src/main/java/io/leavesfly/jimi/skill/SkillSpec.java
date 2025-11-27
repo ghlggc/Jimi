@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Skill规格定义
@@ -83,4 +84,38 @@ public class SkillSpec {
      * 可选字段
      */
     private Path skillFilePath;
+    
+    /**
+     * 脚本文件路径（相对于Skill目录）
+     * 可选字段，如果指定则在Skill激活时执行脚本
+     * 例如："setup.sh", "scripts/init.py"
+     */
+    private String scriptPath;
+    
+    /**
+     * 脚本类型
+     * 可选值：bash, python, node, ruby 等
+     * 如果未指定，则根据文件扩展名自动推断
+     */
+    private String scriptType;
+    
+    /**
+     * 是否自动执行脚本
+     * 默认为 true，设置为 false 则仅注入内容不执行脚本
+     */
+    @Builder.Default
+    private boolean autoExecute = true;
+    
+    /**
+     * 脚本执行的环境变量
+     * 可选字段，为脚本执行提供额外的环境变量
+     */
+    private Map<String, String> scriptEnv;
+    
+    /**
+     * 脚本执行超时时间（秒）
+     * 默认为 60 秒，0 表示使用全局配置
+     */
+    @Builder.Default
+    private int scriptTimeout = 0;
 }

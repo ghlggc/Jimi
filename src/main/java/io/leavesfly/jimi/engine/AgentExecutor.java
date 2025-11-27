@@ -374,6 +374,7 @@ public class AgentExecutor {
             
             return llm.getChatProvider()
                     .generateStream(agent.getSystemPrompt(), context.getHistory(), toolSchemas)
+                    .contextWrite(ctx -> ctx.put("workDir", runtime.getWorkDir()))  // 传递工作目录到 Reactor Context
                     .reduce(new StreamAccumulator(), this::processStreamChunk)
                     .flatMap(this::handleStreamCompletion)
                     .onErrorResume(this::handleLLMError);

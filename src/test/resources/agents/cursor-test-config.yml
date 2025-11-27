@@ -1,0 +1,39 @@
+# Cursor Provider 测试配置示例
+# 将此配置添加到 ~/.jimi/config.yml 中
+
+providers:
+  cursor:
+    type: cursor
+    # 可选: 指定 cursor-agent CLI 路径，默认使用 PATH 中的 cursor-agent
+    custom_headers:
+      cursor_cli_path: "cursor-agent"
+      # 可选: 指定配置目录，默认使用 ~/.jimi/cursor
+      cursor_config_dir: "~/.jimi/cursor"
+
+models:
+  # Cursor 自动模型选择
+  cursor-auto:
+    provider: cursor
+    model: auto
+    max_context_size: 128000
+  
+  # Cursor GPT-5
+  cursor-gpt5:
+    provider: cursor
+    model: gpt-5
+    max_context_size: 128000
+  
+  # Cursor Sonnet 4.5
+  cursor-sonnet:
+    provider: cursor
+    model: sonnet-4.5
+    max_context_size: 200000
+  
+  # Cursor Opus 4.1
+  cursor-opus:
+    provider: cursor
+    model: opus-4.1
+    max_context_size: 200000
+
+# 设置默认模型为 cursor
+default_model: cursor-auto

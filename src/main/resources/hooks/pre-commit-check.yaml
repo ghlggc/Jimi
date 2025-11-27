@@ -1,0 +1,49 @@
+name: "pre-commit-check"
+description: "Git 提交前自动运行测试"
+enabled: true
+priority: 100
+
+trigger:
+  type: "PRE_TOOL_CALL"
+  tools:
+    - "Bash"
+
+execution:
+  type: "script"
+  script: |
+    #!/bin/bash
+    
+    # 检查是否是 git commit 命令
+    if [[ "${TOOL_RESULT}" != *"git commit"* ]]; then
+      exit 0
+    fi
+    
+    echo "🔍 Git 提交前检查..."
+    
+    # 运行测试
+    if [ -f "pom.xml" ]; then
+      echo "📦 Maven 项目,运行测试..."
+      mvn test -q
+      
+      if [ $? -ne 0 ]; then
+        echo "❌ 测试失败,已阻止提交"
+        exit 1
+      fi
+    elif [ -f "build.gradle" ]; then
+      echo "📦 Gradle 项目,运行测试..."
+      ./gradlew test
+      
+      if [ $? -ne 0 ]; then
+        echo "❌ 测试失败,已阻止提交"
+        exit 1
+      fi
+    fi
+    
+    echo "✅ 所有检查通过"
+  workingDir: "${JIMI_WORK_DIR}"
+  timeout: 300
+
+conditions:
+  - type: "file_exists"
+    path: ".git"
+    description: "必须是 Git 仓库"

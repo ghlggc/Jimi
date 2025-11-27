@@ -90,7 +90,9 @@ public class LLMProviderConfig {
 
         @JsonProperty("openai") OPENAI,
 
-        @JsonProperty("claude") CLAUDE
+        @JsonProperty("claude") CLAUDE,
+
+        @JsonProperty("cursor") CURSOR
 
     }
 }

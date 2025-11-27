@@ -1,0 +1,48 @@
+# 示例: 代码格式化命令
+# 位置: ~/.jimi/commands/format.yaml
+
+name: "format"
+description: "格式化 Java 代码"
+category: "code"
+priority: 8
+
+aliases:
+  - "fmt"
+
+usage: "/format [path]"
+
+parameters:
+  - name: "path"
+    type: "path"
+    defaultValue: "src"
+    description: "要格式化的目录或文件路径"
+
+execution:
+  type: "script"
+  script: |
+    #!/bin/bash
+    set -e
+    
+    PATH_TO_FORMAT="${PATH:-src}"
+    
+    echo "🎨 格式化 Java 代码: $PATH_TO_FORMAT"
+    
+    # 使用 google-java-format (如果可用)
+    if command -v google-java-format &> /dev/null; then
+      find "$PATH_TO_FORMAT" -name "*.java" -exec google-java-format -i {} \;
+      echo "✅ 格式化完成 (使用 google-java-format)"
+    else
+      # 回退到 Maven formatter
+      if [ -f "pom.xml" ]; then
+        mvn formatter:format
+        echo "✅ 格式化完成 (使用 Maven formatter)"
+      else
+        echo "❌ 未找到格式化工具"
+        exit 1
+      fi
+    fi
+  
+  timeout: 120
+
+requireApproval: false
+enabled: true

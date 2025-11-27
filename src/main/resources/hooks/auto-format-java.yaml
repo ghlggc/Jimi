@@ -1,0 +1,43 @@
+name: "auto-format-java"
+description: "保存 Java 文件后自动格式化"
+enabled: true
+priority: 10
+
+trigger:
+  type: "POST_TOOL_CALL"
+  tools:
+    - "WriteFile"
+    - "StrReplaceFile"
+  file_patterns:
+    - "*.java"
+
+execution:
+  type: "script"
+  script: |
+    #!/bin/bash
+    set -e
+    
+    # 检查是否安装了 google-java-format
+    if ! command -v google-java-format &> /dev/null; then
+      echo "⚠️  google-java-format 未安装,跳过格式化"
+      echo "   安装: brew install google-java-format"
+      exit 0
+    fi
+    
+    # 格式化所有修改的 Java 文件
+    for file in ${MODIFIED_FILES}; do
+      if [[ $file == *.java ]]; then
+        echo "🔧 格式化: $file"
+        google-java-format -i "$file"
+      fi
+    done
+    
+    echo "✅ Java 文件格式化完成"
+  workingDir: "${JIMI_WORK_DIR}"
+  timeout: 30
+
+conditions:
+  - type: "env_var"
+    var: "JIMI_AUTO_FORMAT"
+    value: "true"
+    description: "启用自动格式化(设置环境变量 JIMI_AUTO_FORMAT=true)"

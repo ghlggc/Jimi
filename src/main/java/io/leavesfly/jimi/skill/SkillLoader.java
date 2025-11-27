@@ -322,6 +322,24 @@ public class SkillLoader {
                     if (metadata.containsKey("triggers")) {
                         builder.triggers((List<String>) metadata.get("triggers"));
                     }
+                    if (metadata.containsKey("scriptPath")) {
+                        builder.scriptPath((String) metadata.get("scriptPath"));
+                    }
+                    if (metadata.containsKey("scriptType")) {
+                        builder.scriptType((String) metadata.get("scriptType"));
+                    }
+                    if (metadata.containsKey("autoExecute")) {
+                        builder.autoExecute((Boolean) metadata.get("autoExecute"));
+                    }
+                    if (metadata.containsKey("scriptEnv")) {
+                        builder.scriptEnv((Map<String, String>) metadata.get("scriptEnv"));
+                    }
+                    if (metadata.containsKey("scriptTimeout")) {
+                        Object timeout = metadata.get("scriptTimeout");
+                        if (timeout instanceof Integer) {
+                            builder.scriptTimeout((Integer) timeout);
+                        }
+                    }
                     
                 } catch (Exception e) {
                     log.warn("Failed to parse YAML Front Matter in {}, using defaults", filePath, e);

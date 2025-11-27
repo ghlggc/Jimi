@@ -7,6 +7,7 @@ import io.leavesfly.jimi.config.JimiConfig;
 import io.leavesfly.jimi.config.LLMModelConfig;
 import io.leavesfly.jimi.config.LLMProviderConfig;
 import io.leavesfly.jimi.exception.ConfigException;
+import io.leavesfly.jimi.llm.provider.CursorChatProvider;
 import io.leavesfly.jimi.llm.provider.KimiChatProvider;
 import io.leavesfly.jimi.llm.provider.OpenAICompatibleChatProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -136,7 +137,7 @@ public class LLMFactory {
         String model = modelConfig.getModel();
 
         if ((apiKey == null || apiKey.isEmpty())
-                && !providerConfig.getType().equals(LLMProviderConfig.ProviderType.OLLAMA)) {
+                && providerConfig.getType().equals(LLMProviderConfig.ProviderType.QWEN)) {
             log.error("No valid API key configured for model '{}'. " +
                             "Please set API key in config file or environment variable: {}_API_KEY",
                     modelName, providerConfig.getType().toString().toUpperCase());
@@ -197,6 +198,10 @@ public class LLMFactory {
             case CLAUDE:
                 return new OpenAICompatibleChatProvider(
                         model, config, objectMapper, "Claude");
+
+            case CURSOR:
+                return new CursorChatProvider(
+                        model, config, objectMapper);
 
             default:
                 throw new ConfigException("Unsupported provider type: " + type);

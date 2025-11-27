@@ -1,0 +1,44 @@
+name: "session-startup"
+description: "会话启动时显示欢迎信息"
+enabled: true
+priority: 0
+
+trigger:
+  type: "ON_SESSION_START"
+
+execution:
+  type: "script"
+  script: |
+    #!/bin/bash
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🎉 欢迎使用 Jimi!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "📂 工作目录: ${JIMI_WORK_DIR}"
+    echo "🏠 用户目录: ${HOME}"
+    echo ""
+    
+    # 显示 Git 信息
+    if [ -d ".git" ]; then
+      branch=$(git branch --show-current 2>/dev/null)
+      if [ -n "$branch" ]; then
+        echo "🌿 Git 分支: $branch"
+      fi
+    fi
+    
+    # 显示项目类型
+    if [ -f "pom.xml" ]; then
+      echo "📦 项目类型: Maven"
+    elif [ -f "build.gradle" ]; then
+      echo "📦 项目类型: Gradle"
+    elif [ -f "package.json" ]; then
+      echo "📦 项目类型: Node.js"
+    fi
+    
+    echo ""
+    echo "💡 提示: 使用 /commands 查看自定义命令"
+    echo "💡 提示: 使用 /hooks 查看已安装的 Hooks"
+    echo ""
+  workingDir: "${JIMI_WORK_DIR}"
+  timeout: 5
