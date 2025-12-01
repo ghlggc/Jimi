@@ -115,7 +115,9 @@ public class IndexCommandHandler implements CommandHandler {
         }
     
         // 解析参数
-        String targetPath = args.length > 1 ? args[1] : ".";
+        String targetPath = args.length > 1 ? args[1] : 
+                (context.getSoul() != null && context.getSoul().getRuntime() != null 
+                        ? context.getSoul().getRuntime().getWorkDir().toString() : ".");
         int chunkSize = vectorIndexConfig != null ? vectorIndexConfig.getChunkSize() : 50;
         int overlap = vectorIndexConfig != null ? vectorIndexConfig.getChunkOverlap() : 5;
     
@@ -206,7 +208,9 @@ public class IndexCommandHandler implements CommandHandler {
             return;
         }
 
-        String targetPath = args.length > 1 ? args[1] : ".";
+        String targetPath = args.length > 1 ? args[1] : 
+                (context.getSoul() != null && context.getSoul().getRuntime() != null 
+                        ? context.getSoul().getRuntime().getWorkDir().toString() : ".");
         
         context.getOutputFormatter().printInfo("🔄 开始增量更新索引...");
         context.getOutputFormatter().printInfo("   目标路径: " + targetPath);
