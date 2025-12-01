@@ -115,18 +115,7 @@ public class IndexCommandHandler implements CommandHandler {
         }
     
         // 解析参数
-        // 优先使用命令行参数，否则从 Runtime 中获取当前工作目录
-        String targetPath;
-        if (args.length > 1) {
-            targetPath = args[1];
-        } else {
-            // 从 Runtime 获取工作目录（统一的工作目录管理）
-            if (context.getSoul() != null && context.getSoul().getRuntime() != null) {
-                targetPath = context.getSoul().getRuntime().getWorkDir().toString();
-            } else {
-                targetPath = ".";
-            }
-        }
+        String targetPath = args.length > 1 ? args[1] : ".";
         int chunkSize = vectorIndexConfig != null ? vectorIndexConfig.getChunkSize() : 50;
         int overlap = vectorIndexConfig != null ? vectorIndexConfig.getChunkOverlap() : 5;
     
@@ -217,18 +206,7 @@ public class IndexCommandHandler implements CommandHandler {
             return;
         }
 
-        // 优先使用命令行参数，否则从 Runtime 中获取当前工作目录
-        String targetPath;
-        if (args.length > 1) {
-            targetPath = args[1];
-        } else {
-            // 从 Runtime 获取工作目录（统一的工作目录管理）
-            if (context.getSoul() != null && context.getSoul().getRuntime() != null) {
-                targetPath = context.getSoul().getRuntime().getWorkDir().toString();
-            } else {
-                targetPath = ".";
-            }
-        }
+        String targetPath = args.length > 1 ? args[1] : ".";
         
         context.getOutputFormatter().printInfo("🔄 开始增量更新索引...");
         context.getOutputFormatter().printInfo("   目标路径: " + targetPath);
@@ -332,7 +310,7 @@ public class IndexCommandHandler implements CommandHandler {
         }
 
         // 拼接查询文本（从第2个参数开始）
-        String query = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+        String query = String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length));
         
         context.getOutputFormatter().printInfo("🔍 查询索引: " + query);
 
