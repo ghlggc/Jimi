@@ -43,6 +43,13 @@ public class SkillConfig {
     private boolean autoMatch = true;
     
     /**
+     * 是否启用 Claude Code Skill 兼容模式
+     * 开启后，对于没有 triggers 字段的 Skill，会自动从 name 和 description 生成 triggers
+     * 默认：true
+     */
+    private boolean enableClaudeCodeCompatibility = true;
+    
+    /**
      * 匹配相关配置
      */
     private MatchingConfig matching = new MatchingConfig();

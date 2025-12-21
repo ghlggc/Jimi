@@ -13,8 +13,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -52,6 +54,9 @@ public class SkillLoader {
     @Autowired
     @Qualifier("yamlObjectMapper")
     private ObjectMapper yamlObjectMapper;
+    
+    @Autowired(required = false)
+    private SkillConfig skillConfig;
     
     /**
      * 判断是否在JAR包内运行
@@ -364,11 +369,110 @@ public class SkillLoader {
                 log.warn("Skill content is empty in: {}", filePath);
             }
             
+            // 兼容 Claude Code Skill: 如果没有 triggers,自动生成
+            if ((skill.getTriggers() == null || skill.getTriggers().isEmpty()) && isClaudeCodeCompatibilityEnabled()) {
+                List<String> autoTriggers = generateAutoTriggers(skill);
+                skill.setTriggers(autoTriggers);
+                log.info("Auto-generated triggers for Claude Code compatible skill '{}': {}", 
+                        skill.getName(), autoTriggers);
+            }
+            
             return skill;
             
         } catch (Exception e) {
             log.error("Failed to parse skill content from: {}", filePath, e);
             return null;
         }
+    }
+    
+    /**
+     * 自动生成 Triggers (兼容 Claude Code Skill)
+     * 从 Skill 的 name 和 description 中提取关键词作为 triggers
+     * 
+     * 生成策略:
+     * 1. 将 name 中的连字符替换为空格,作为一个 trigger
+     * 2. 将 name 按连字符拆分,每个单词作为独立 trigger
+     * 3. 从 description 中提取有意义的名词和动词
+     * 
+     * @param skill Skill 对象
+     * @return 自动生成的 triggers 列表
+     */
+    private List<String> generateAutoTriggers(SkillSpec skill) {
+        Set<String> triggers = new java.util.LinkedHashSet<>();
+        
+        String name = skill.getName();
+        String description = skill.getDescription();
+        
+        // 1. 处理 name: 将连字符替换为空格
+        if (name != null && !name.isEmpty()) {
+            // 添加完整名称 (将 - 和 _ 替换为空格)
+            String fullName = name.replaceAll("[-_]", " ").trim();
+            if (!fullName.isEmpty()) {
+                triggers.add(fullName);
+            }
+            
+            // 添加单个单词
+            String[] nameParts = name.split("[-_\\s]+");
+            for (String part : nameParts) {
+                String trimmed = part.trim();
+                if (!trimmed.isEmpty() && trimmed.length() > 2) {  // 过滤过短的词
+                    triggers.add(trimmed);
+                }
+            }
+        }
+        
+        // 2. 处理 description: 提取关键词
+        if (description != null && !description.isEmpty()) {
+            // 提取英文单词 (长度 >= 4,过滤停用词)
+            String[] words = description.toLowerCase()
+                    .replaceAll("[^a-z\\s\\u4e00-\\u9fa5]", " ")  // 保留字母和中文
+                    .split("\\s+");
+            
+            Set<String> stopWords = Set.of(
+                    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+                    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+                    "this", "that", "these", "those", "can", "will", "your", "when",
+                    "这", "那", "的", "了", "是", "在", "有", "和", "或", "但", "如果"
+            );
+            
+            for (String word : words) {
+                String trimmed = word.trim();
+                // 英文单词: 长度 >= 4, 非停用词
+                if (trimmed.length() >= 4 && !stopWords.contains(trimmed) && 
+                        trimmed.matches("[a-z]+")) {
+                    triggers.add(trimmed);
+                    if (triggers.size() >= 10) break;  // 限制数量
+                }
+                // 中文词: 长度 >= 2
+                if (trimmed.length() >= 2 && trimmed.matches("[\\u4e00-\\u9fa5]+")) {
+                    triggers.add(trimmed);
+                    if (triggers.size() >= 10) break;
+                }
+            }
+        }
+        
+        // 3. 如果没有提取到任何 trigger,至少使用 name
+        if (triggers.isEmpty() && name != null && !name.isEmpty()) {
+            triggers.add(name);
+        }
+        
+        List<String> result = new ArrayList<>(triggers);
+        log.debug("Generated {} auto-triggers from name='{}' and description='{}'", 
+                result.size(), name, 
+                description != null && description.length() > 50 
+                    ? description.substring(0, 50) + "..." 
+                    : description);
+        
+        return result;
+    }
+    
+    /**
+     * 判断是否启用 Claude Code 兼容模式
+     */
+    private boolean isClaudeCodeCompatibilityEnabled() {
+        if (skillConfig != null) {
+            return skillConfig.isEnableClaudeCodeCompatibility();
+        }
+        return true;  // 默认启用
     }
 }
