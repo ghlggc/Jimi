@@ -39,6 +39,17 @@
         "max_requests": 20,
         "sleep_ms": 1000
       }
+    },
+    "minimax": {
+      "type": "minimax",
+      "base_url": "https://api.minimaxi.com/v1",
+      "api_key": "YOUR_API_KEY_HERE",
+      "custom_headers": {},
+      "rate_limit": {
+        "window_ms": 60000,
+        "max_requests": 30,
+        "sleep_ms": 1000
+      }
     }
   },
   "models": {
@@ -101,6 +112,21 @@
       "provider": "glm",
       "model": "glm-4-plus",
       "max_context_size": 128000
+    },
+    "minimax-m2.1": {
+      "provider": "minimax",
+      "model": "MiniMax-M2.1",
+      "max_context_size": 200000
+    },
+    "minimax-m2.1-lightning": {
+      "provider": "minimax",
+      "model": "MiniMax-M2.1-lightning",
+      "max_context_size": 200000
+    },
+    "minimax-m2": {
+      "provider": "minimax",
+      "model": "MiniMax-M2",
+      "max_context_size": 200000
     },
     "qwen3:4b-instruct-2507-q8_0": {
       "provider": "ollama",

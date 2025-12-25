@@ -94,7 +94,9 @@ public class LLMProviderConfig {
 
         @JsonProperty("cursor") CURSOR,
 
-        @JsonProperty("glm") GLM
+        @JsonProperty("glm") GLM,
+
+        @JsonProperty("minimax") MINIMAX
 
     }
 }

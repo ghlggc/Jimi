@@ -497,18 +497,19 @@ public class AgentExecutor {
 
     /**
      * 处理LLM调用错误
+     * 静默处理，不输出到用户界面
      */
     private Mono<Boolean> handleLLMError(Throwable e) {
+        // 只在DEBUG级别记录错误
         if (e instanceof WebClientResponseException) {
             WebClientResponseException webEx = (WebClientResponseException) e;
-            log.error("LLM API call failed: status={}, body={}",
-                    webEx.getStatusCode(), webEx.getResponseBodyAsString(), e);
+            log.debug("LLM API call failed: status={}, body={}",
+                    webEx.getStatusCode(), webEx.getResponseBodyAsString());
         } else {
-            log.error("LLM API call failed", e);
+            log.debug("LLM API call failed: {}", e.getMessage());
         }
-        return context.appendMessage(
-                Message.assistant("抱歉，我遇到了一个错误：" + e.getMessage())
-        ).thenReturn(true);
+        // 静默结束，不输出错误信息到用户界面
+        return Mono.just(true);
     }
 
     /**

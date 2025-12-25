@@ -207,6 +207,10 @@ public class LLMFactory {
                 return new OpenAICompatibleChatProvider(
                         model, config, objectMapper, "GLM");
 
+            case MINIMAX:
+                return new OpenAICompatibleChatProvider(
+                        model, config, objectMapper, "MiniMax");
+
             default:
                 throw new ConfigException("Unsupported provider type: " + type);
         }

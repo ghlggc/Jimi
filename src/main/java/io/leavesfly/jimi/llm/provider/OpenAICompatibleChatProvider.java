@@ -46,6 +46,9 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
     // Kimi K2 thinking 模式检测
     private boolean isKimiThinkingMode = false;
     private boolean kimiFirstParagraphSent = false;
+    
+    // API错误标志位，用于立即终止流
+    private volatile boolean apiErrorOccurred = false;
 
     public OpenAICompatibleChatProvider(
             String modelName,
@@ -153,6 +156,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                 thinkTagBuffer = new StringBuilder();
                 isKimiThinkingMode = false;
                 kimiFirstParagraphSent = false;
+                apiErrorOccurred = false;  // 重置错误标志
 
                 ObjectNode requestBody = buildRequestBody(systemPrompt, history, tools, true);
 
@@ -180,36 +184,41 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                         })
                         .filter(data -> data != null && !data.isEmpty())
                         .flatMap(data -> {
-                            // 使用 flatMap 替代 map,以便捕获单个chunk的解析错误而不中断整个流
+                            // 检查是否已经发生错误，如果是则跳过所有后续数据
+                            if (apiErrorOccurred) {
+                                return Mono.empty();
+                            }
                             try {
                                 ChatCompletionChunk chunk = parseStreamChunk(data);
-//                                log.debug("Parsed chunk: type={}, contentDelta={}, isReasoning={}",
-//                                        chunk.getType(), 
-//                                        chunk.getContentDelta() != null ? chunk.getContentDelta().substring(0, Math.min(50, chunk.getContentDelta().length())) : null,
-//                                        chunk.isReasoning());
                                 return Mono.just(chunk);
                             } catch (Exception e) {
-                                log.warn("Failed to parse stream chunk, skipping: {}", data, e);
-                                // 返回空流,跳过这个错误的chunk,不中断整个流
                                 return Mono.empty();
                             }
                         })
+                        // 关键：遇到DONE类型时立即终止流（包含这个DONE chunk）
+                        .takeUntil(chunk -> chunk.getType() == ChatCompletionChunk.ChunkType.DONE)
                         .onErrorResume(e -> {
+                            // 静默处理错误，只在DEBUG级别记录
                             if (e instanceof org.springframework.web.reactive.function.client.WebClientResponseException) {
                                 org.springframework.web.reactive.function.client.WebClientResponseException webEx =
                                         (org.springframework.web.reactive.function.client.WebClientResponseException) e;
-                                log.error("{} streaming API error: status={}, body={}",
+                                log.debug("{} streaming API error: status={}, body={}",
                                         providerName, webEx.getStatusCode(), webEx.getResponseBodyAsString());
                             } else {
-                                log.error("{} streaming API error: {}", providerName, e.getMessage());
-                                log.debug("Streaming error details", e);
+                                log.debug("{} streaming API error: {}", providerName, e.getMessage());
                             }
-                            return Flux.error(e);
+                            // 返回DONE以正常结束流程
+                            return Flux.just(ChatCompletionChunk.builder()
+                                    .type(ChatCompletionChunk.ChunkType.DONE)
+                                    .build());
                         });
 
             } catch (Exception e) {
-                log.error("Failed to generate streaming chat completion with {}", providerName, e);
-                return Flux.error(new RuntimeException("Failed to generate streaming chat completion", e));
+                log.debug("Failed to generate streaming chat completion with {}: {}", providerName, e.getMessage());
+                // 返回DONE以正常结束流程
+                return Flux.just(ChatCompletionChunk.builder()
+                        .type(ChatCompletionChunk.ChunkType.DONE)
+                        .build());
             }
         });
     }
@@ -404,9 +413,19 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
         try {
             JsonNode chunk = objectMapper.readTree(data);
 
+            // 检查是否为错误响应
+            if (chunk.has("type") && "error".equals(chunk.get("type").asText())) {
+                handleApiError(chunk);
+                apiErrorOccurred = true;  // 设置错误标志
+                // 返回DONE以结束流程
+                return ChatCompletionChunk.builder()
+                        .type(ChatCompletionChunk.ChunkType.DONE)
+                        .build();
+            }
+
             // 检查 choices 是否存在且非空
             if (!chunk.has("choices") || chunk.get("choices").isNull() || chunk.get("choices").isEmpty()) {
-                log.warn("Stream chunk missing choices: {}", data);
+                log.warn("{} stream chunk missing choices: {}", providerName, data);
                 return ChatCompletionChunk.builder()
                         .type(ChatCompletionChunk.ChunkType.CONTENT)
                         .contentDelta("")
@@ -456,17 +475,6 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
             // 检查 reasoning_content 字段
             boolean hasReasoningContent = delta.has("reasoning_content");
             boolean isReasoningContentNull = hasReasoningContent && delta.get("reasoning_content").isNull();
-//            log.debug("Has reasoning_content: {}, Is null: {}", hasReasoningContent, isReasoningContentNull);
-
-            // Kimi K2 thinking 模式检测：
-            // 1. reasoning_content 字段存在且为 null
-            // 2. 之前已经检测到该模式（确保同一响应流中的一致性）
-            // 注意：qwen3-next-80b-a3b-thinking 等模型也会将 reasoning_content 设为 null，
-            // 但它们不使用 \n\n 分隔符，而是直接输出 content
-            // 因此仅在之前已经确认是 Kimi 模式时才继续使用该模式
-//            if (isKimiThinkingMode && hasReasoningContent && isReasoningContentNull && delta.has("content")) {
-////                log.debug("Continue Kimi K2 thinking mode (null reasoning_content field)");
-//            }
 
             String reasoningField = null;
             if (delta.has("reasoning_content") && !delta.get("reasoning_content").isNull()) {
@@ -535,7 +543,7 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
                     .build();
 
         } catch (Exception e) {
-            log.error("Failed to parse stream chunk: {}", data, e);
+            // 静默处理解析错误，返回空内容继续流程
             return ChatCompletionChunk.builder()
                     .type(ChatCompletionChunk.ChunkType.CONTENT)
                     .contentDelta("")
@@ -738,6 +746,54 @@ public class OpenAICompatibleChatProvider implements ChatProvider {
     private void applyRateLimit() {
         if (rateLimiter != null) {
             rateLimiter.acquirePermit();
+        }
+    }
+
+    /**
+     * 处理API错误响应
+     * 输出友好的错误提示（不包含堆栈信息）
+     */
+    private void handleApiError(JsonNode errorResponse) {
+        if (!errorResponse.has("error")) {
+            log.warn("{} API 返回错误响应", providerName);
+            return;
+        }
+
+        JsonNode error = errorResponse.get("error");
+        String errorType = error.has("type") ? error.get("type").asText() : "unknown";
+        String errorMessage = error.has("message") ? error.get("message").asText() : "unknown error";
+        String httpCode = error.has("http_code") ? error.get("http_code").asText() : "unknown";
+
+        // 根据错误类型输出友好提示（不包含堆栈）
+        switch (errorType) {
+            case "insufficient_balance_error":
+                log.warn("\n========================================\n" +
+                        "{} API Error: 账户余额不足\n" +
+                        "解决方法: 请前往 {} 平台充值账户余额\n" +
+                        "========================================",
+                        providerName, providerName);
+                break;
+            case "rate_limit_error":
+                log.warn("{} API Error: 请求频率超限，请稍后重试", providerName);
+                break;
+            case "invalid_api_key":
+            case "authentication_error":
+                log.warn("{} API Error: API密钥无效，请检查配置", providerName);
+                break;
+            case "model_not_found":
+            case "invalid_model":
+                log.warn("{} API Error: 模型不存在，请检查配置中的model参数", providerName);
+                break;
+            case "context_length_exceeded":
+                log.warn("{} API Error: 上下文长度超限，请使用 /compress 或 /clear 命令", providerName);
+                break;
+            case "server_error":
+            case "internal_error":
+                log.warn("{} API Error: 服务器内部错误，请稍后重试", providerName);
+                break;
+            default:
+                log.warn("{} API Error: {} ({})", providerName, errorType, httpCode);
+                break;
         }
     }
 }
