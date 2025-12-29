@@ -20,6 +20,9 @@ import io.leavesfly.jimi.engine.runtime.Runtime;
 import io.leavesfly.jimi.engine.toolcall.ToolCallFilter;
 import io.leavesfly.jimi.engine.toolcall.ToolCallValidator;
 import io.leavesfly.jimi.engine.toolcall.ToolErrorTracker;
+import io.leavesfly.jimi.memory.MemoryExtractor;
+import io.leavesfly.jimi.memory.MemoryInjector;
+import io.leavesfly.jimi.memory.TaskHistory;
 import io.leavesfly.jimi.retrieval.RetrievalPipeline;
 import io.leavesfly.jimi.skill.SkillMatcher;
 import io.leavesfly.jimi.skill.SkillProvider;
@@ -33,6 +36,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -72,6 +76,8 @@ public class AgentExecutor {
     private final RetrievalPipeline retrievalPipeline; // 检索增强管线（可选）
     private final ActivePromptBuilder promptBuilder;  // 活动提示构建器（ReCAP）
     private final MemoryConfig memoryConfig;          // 记忆配置（ReCAP）
+    private final MemoryInjector memoryInjector;  // 长期记忆注入器（可选）
+    private final MemoryExtractor memoryExtractor; // 长期记忆提取器（可选）
 
     // 工具调用相关的辅助组件
     private final ToolCallValidator toolCallValidator = new ToolCallValidator();
@@ -80,6 +86,13 @@ public class AgentExecutor {
 
     // 用于跟踪连续的无工具调用步数
     private int consecutiveNoToolCallSteps = 0;
+    
+    // 任务执行跟踪（用于记录任务历史）
+    private Instant taskStartTime;
+    private String currentUserQuery;
+    private List<String> toolsUsedInTask = new ArrayList<>();
+    private int stepsInTask = 0;
+    private int tokensInTask = 0;
     
     // ReCAP 记忆优化：父级上下文栈
     private final Deque<ParentContext> parentStack = new LinkedList<>();
@@ -98,7 +111,7 @@ public class AgentExecutor {
             ToolRegistry toolRegistry,
             Compaction compaction
     ) {
-        this(agent, runtime, context, wire, toolRegistry, compaction, false, null, null, null, null, null);
+        this(agent, runtime, context, wire, toolRegistry, compaction, false, null, null, null, null, null, null, null);
     }
 
     /**
@@ -115,11 +128,11 @@ public class AgentExecutor {
             SkillMatcher skillMatcher,
             SkillProvider skillProvider
     ) {
-        this(agent, runtime, context, wire, toolRegistry, compaction, isSubagent, skillMatcher, skillProvider, null, null, null);
+        this(agent, runtime, context, wire, toolRegistry, compaction, isSubagent, skillMatcher, skillProvider, null, null, null, null, null);
     }
 
     /**
-     * 最完整构造函数（支持 ReCAP 记忆优化）
+     * 最完整构造函数（支持 ReCAP 记忆优化 + 长期记忆）
      */
     public AgentExecutor(
             Agent agent,
@@ -133,7 +146,9 @@ public class AgentExecutor {
             SkillProvider skillProvider,
             RetrievalPipeline retrievalPipeline,
             ActivePromptBuilder promptBuilder,
-            MemoryConfig memoryConfig
+            MemoryConfig memoryConfig,
+            MemoryInjector memoryInjector,
+            MemoryExtractor memoryExtractor
     ) {
         this.agent = agent;
         this.runtime = runtime;
@@ -148,6 +163,8 @@ public class AgentExecutor {
         this.retrievalPipeline = retrievalPipeline;
         this.promptBuilder = promptBuilder;
         this.memoryConfig = memoryConfig;
+        this.memoryInjector = memoryInjector;
+        this.memoryExtractor = memoryExtractor;
         
         // 订阅 Subagent 事件（ReCAP 记忆优化）
         if (memoryConfig != null && memoryConfig.isEnableRecap()) {
@@ -163,6 +180,12 @@ public class AgentExecutor {
      */
     public Mono<Void> execute(List<ContentPart> userInput) {
         return Mono.defer(() -> {
+            // 初始化任务跟踪
+            taskStartTime = Instant.now();
+            toolsUsedInTask.clear();
+            stepsInTask = 0;
+            tokensInTask = 0;
+            
             // 创建用户消息
             Message userMessage = Message.user(userInput);
             
@@ -176,6 +199,11 @@ public class AgentExecutor {
             // 估算用户输入的Token数（因为用户输入不会有LLM返回的usage）
             int userInputTokens = estimateTokensFromMessage(userMessage);
             int newTokenCount = context.getTokenCount() + userInputTokens;
+            tokensInTask += userInputTokens;
+            
+            // 提取用户查询文本（用于记忆注入和任务记录）
+            String userQuery = extractHighLevelIntent(userInput);
+            currentUserQuery = userQuery;
             
             // 创建检查点 0，添加用户消息，并更新Token计数
             return context.checkpoint(false)
@@ -183,9 +211,19 @@ public class AgentExecutor {
                     .then(context.updateTokenCount(newTokenCount))
                     .doOnSuccess(v -> log.debug("Added user input: {} tokens (total: {})", 
                             userInputTokens, newTokenCount))
+                    // 注入长期记忆（如果启用）
+                    .then(injectLongTermMemories(userQuery))
                     .then(agentLoop())
-                    .doOnSuccess(v -> log.info("Agent execution completed"))
-                    .doOnError(e -> log.error("Agent execution failed", e));
+                    .doOnSuccess(v -> {
+                        log.info("Agent execution completed");
+                        // 记录任务历史
+                        recordTaskHistory("success").subscribe();
+                    })
+                    .doOnError(e -> {
+                        log.error("Agent execution failed", e);
+                        // 记录失败的任务
+                        recordTaskHistory("failed").subscribe();
+                    });
         });
     }
 
@@ -200,6 +238,9 @@ public class AgentExecutor {
      * Agent 循环步骤
      */
     private Mono<Void> agentLoopStep(int stepNo) {
+        // 记录步数
+        stepsInTask = stepNo;
+        
         // 获取并递增全局步数
         int globalStepNo = runtime.getSession().incrementAndGetGlobalStep();
         
@@ -838,6 +879,11 @@ public class AgentExecutor {
      */
     private Mono<Message> executeValidToolCall(String toolName, String arguments,
                                                String toolCallId, String toolSignature) {
+        // 记录工具使用
+        if (!toolsUsedInTask.contains(toolName)) {
+            toolsUsedInTask.add(toolName);
+        }
+        
         return toolRegistry.execute(toolName, arguments)
                 .doOnNext(result -> {
                     // 发送工具执行结果消息到 Wire
@@ -868,6 +914,12 @@ public class AgentExecutor {
                 if (insight != null) {
                     context.addKeyInsight(insight).subscribe();
                 }
+            }
+            
+            // 提取长期记忆（如果启用）
+            if (memoryExtractor != null) {
+                String toolName = toolSignature.split(":")[0];
+                memoryExtractor.extractFromToolResult(result, toolName).subscribe();
             }
         } else if (result.isError()) {
             toolErrorTracker.trackError(toolSignature);
@@ -940,6 +992,24 @@ public class AgentExecutor {
     }
     
     // ==================== ReCAP 记忆优化相关方法 ====================
+    
+    /**
+     * 注入长期记忆（如果启用）
+     * 
+     * @param userQuery 用户查询
+     * @return 完成的 Mono
+     */
+    private Mono<Void> injectLongTermMemories(String userQuery) {
+        if (memoryInjector == null) {
+            return Mono.empty();
+        }
+        
+        return memoryInjector.injectMemories(context, userQuery)
+                .onErrorResume(e -> {
+                    log.warn("记忆注入失败，继续执行: {}", e.getMessage());
+                    return Mono.empty();
+                });
+    }
     
     /**
      * 提取高层意图（简化版：取用户输入的前 200 字符）
@@ -1095,5 +1165,92 @@ public class AgentExecutor {
         }
         
         return "(无)";
+    }
+    
+    // ==================== 任务历史记录 ====================
+    
+    /**
+     * 记录任务历史到持久化存储
+     * 
+     * @param status 任务状态（success/failed/partial）
+     * @return 完成的 Mono
+     */
+    private Mono<Void> recordTaskHistory(String status) {
+        // 如果没有启用长期记忆或MemoryExtractor未初始化，直接返回
+        if (memoryExtractor == null || memoryExtractor.getMemoryManager() == null) {
+            return Mono.empty();
+        }
+        
+        if (currentUserQuery == null || taskStartTime == null) {
+            log.warn("任务信息不完整，跳过记录");
+            return Mono.empty();
+        }
+        
+        return Mono.defer(() -> {
+            // 计算执行时长
+            long durationMs = Instant.now().toEpochMilli() - taskStartTime.toEpochMilli();
+            
+            // 提取任务摘要（从最后的assistant消息）
+            String summary = extractTaskSummary();
+            
+            // 生成任务ID
+            String taskId = "task_" + taskStartTime.toString().replaceAll("[^0-9]", "").substring(0, 14);
+            
+            // 构建任务历史
+            TaskHistory task = TaskHistory.builder()
+                    .id(taskId)
+                    .timestamp(taskStartTime)
+                    .userQuery(currentUserQuery)
+                    .summary(summary)
+                    .toolsUsed(new ArrayList<>(toolsUsedInTask))
+                    .resultStatus(status)
+                    .stepsCount(stepsInTask)
+                    .tokensUsed(tokensInTask)
+                    .durationMs(durationMs)
+                    .build();
+            
+            // 根据关键词添加标签
+            if (currentUserQuery.contains("修复") || currentUserQuery.contains("解决") || currentUserQuery.contains("bug")) {
+                task.addTag("bug_fix");
+            }
+            if (currentUserQuery.contains("实现") || currentUserQuery.contains("添加") || currentUserQuery.contains("增加")) {
+                task.addTag("feature_add");
+            }
+            if (currentUserQuery.contains("重构") || currentUserQuery.contains("优化")) {
+                task.addTag("refactor");
+            }
+            if (toolsUsedInTask.isEmpty()) {
+                task.addTag("query");
+            }
+            
+            // 保存到 MemoryManager
+            return memoryExtractor.getMemoryManager().addTaskHistory(task)
+                    .doOnSuccess(v -> log.info("任务历史已记录: {} (用时{}ms, {}steps, {}tokens)", 
+                            currentUserQuery, durationMs, stepsInTask, tokensInTask))
+                    .doOnError(e -> log.error("记录任务历史失败", e))
+                    .onErrorResume(e -> Mono.empty()); // 失败不影响主流程
+        });
+    }
+    
+    /**
+     * 提取任务摘要（从最后的assistant消息）
+     */
+    private String extractTaskSummary() {
+        List<Message> history = context.getHistory();
+        
+        for (int i = history.size() - 1; i >= 0; i--) {
+            Message msg = history.get(i);
+            if (msg.getRole() == MessageRole.ASSISTANT) {
+                String content = msg.getTextContent();
+                if (content != null && !content.isEmpty()) {
+                    // 取前500字符作为摘要
+                    return content.length() > 500 
+                            ? content.substring(0, 500) + "..." 
+                            : content;
+                }
+            }
+        }
+        
+        return "任务已完成";
     }
 }

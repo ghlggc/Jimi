@@ -14,9 +14,12 @@ model: qwen3-coder-plus
 
 # 可用工具（专注于部署和运维）
 tools:
-  - Bash          # 执行部署命令
-  - ReadFile      # 读取配置文件
-  - WriteFile     # 编写部署脚本
-  - Grep          # 搜索日志和配置
-#  - SearchWeb     # 搜索运维文档
-  - Think         # 分析部署策略
+  - Bash              # 执行 shell 命令
+  - ReadFile          # 读取文件内容
+  - WriteFile         # 写入文件内容
+  - StrReplaceFile    # 替换文件中的字符串
+  - Glob              # 文件路径模式匹配
+  - Grep              # 文本内容搜索
+  - SearchWeb         # 网络搜索
+  - FetchURL          # 获取 URL 内容
+  - SetTodoList       # 设置任务清单

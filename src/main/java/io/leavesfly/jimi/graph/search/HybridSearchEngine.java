@@ -55,7 +55,7 @@ public class HybridSearchEngine {
             
             // 检查向量检索是否可用
             if (config.isEnableVectorSearch() && (vectorStore == null || embeddingProvider == null)) {
-                log.warn("Vector search requested but VectorStore or EmbeddingProvider not available, disabling vector search");
+                log.info("Vector search requested but VectorStore or EmbeddingProvider not available, disabling vector search");
                 config.setEnableVectorSearch(false);
             }
             

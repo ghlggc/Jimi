@@ -85,7 +85,7 @@ public class Task extends AbstractTool<Task.Params> implements WireAware {
     /**
      * 最小响应长度（字符数，可配置）
      */
-    private int minResponseLength = 200;
+    private int minResponseLength = 10;
 
     private Runtime runtime;
     private Session session;

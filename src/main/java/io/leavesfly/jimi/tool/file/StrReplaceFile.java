@@ -18,13 +18,15 @@ import reactor.core.publisher.Mono;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * StrReplaceFile 工具 - 字符串替换文件内容
- * 支持单个或多个替换操作
- * 
+ * <p>
+ * 参数设计参考 Claude Code 的 str_replace_editor，采用扁平化结构：
+ * - path: 文件路径
+ * - old_str: 要替换的旧字符串
+ * - new_str: 替换后的新字符串
+ * <p>
  * 使用 @Scope("prototype") 使每次获取都是新实例
  */
 @Slf4j
@@ -38,36 +40,7 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
     private Approval approval;
     
     /**
-     * 编辑操作
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Edit {
-        /**
-         * 要替换的旧字符串（可以是多行）
-         */
-        @JsonPropertyDescription("需要被替换的原始字符串，必须精确匹配文件中的内容（包括空格、换行等）")
-        private String old;
-        
-        /**
-         * 替换后的新字符串（可以是多行）
-         */
-        @JsonPropertyDescription("用于替换的新字符串。默认为空字符串（即删除 old 内容）")
-        @Builder.Default
-        private String newText = "";
-        
-        /**
-         * 是否替换所有出现的位置
-         */
-        @JsonPropertyDescription("是否替换文件中所有匹配的位置。true 表示全部替换，false 表示只替换第一次出现。默认为 false")
-        @Builder.Default
-        private boolean replaceAll = false;
-    }
-    
-    /**
-     * 参数模型
+     * 参数模型 - 扁平化设计，便于 LLM 生成正确的 JSON
      */
     @Data
     @Builder
@@ -77,20 +50,26 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
         /**
          * 文件绝对路径
          */
-        @JsonPropertyDescription("要编辑的文件绝对路径，必须是完整路径（例如：/home/user/file.txt）")
+        @JsonPropertyDescription("要编辑的文件绝对路径（例如：/home/user/file.txt）")
         private String path;
         
         /**
-         * 编辑操作（单个或列表）
+         * 要替换的旧字符串（精确匹配）
          */
-        @JsonPropertyDescription("要执行的编辑操作列表，每个操作包含 old、newText 和 replaceAll 字段")
-        private List<Edit> edits;
+        @JsonPropertyDescription("要替换的原始字符串，必须与文件内容完全匹配（包括空格和换行符）")
+        private String old_str;
+        
+        /**
+         * 替换后的新字符串
+         */
+        @JsonPropertyDescription("替换后的新字符串。使用空字符串可删除 old_str")
+        private String new_str;
     }
     
     public StrReplaceFile() {
         super(
             "StrReplaceFile",
-            "对文件应用字符串替换。支持单个或多个编辑操作。",
+            "替换文件中的字符串。old_str 必须精确匹配文件内容。",
             Params.class
         );
     }
@@ -115,30 +94,19 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
                     ));
                 }
                 
-                if (params.edits == null || params.edits.isEmpty()) {
+                if (params.old_str == null || params.old_str.isEmpty()) {
                     return Mono.just(ToolResult.error(
-                        "Edits are required. Please provide at least one edit operation.",
-                        "Missing edits"
+                        "old_str is required and cannot be empty.",
+                        "Missing old_str"
                     ));
                 }
                 
-                // 验证每个编辑操作
-                for (int i = 0; i < params.edits.size(); i++) {
-                    Edit edit = params.edits.get(i);
-                    if (edit.old == null || edit.old.isEmpty()) {
-                        return Mono.just(ToolResult.error(
-                            String.format("Edit #%d: 'old' string is required and cannot be empty.", i + 1),
-                            "Invalid edit"
-                        ));
-                    }
-                    // 验证 newText 不为 null
-                    if (edit.newText == null) {
-                        edit.newText = "";  // 如果为 null，设置为空字符串
-                    }
-                    // 检查是否为无意义替换
-                    if (edit.old.equals(edit.newText)) {
-                        log.warn("Edit #{}: old and newText are identical, this is a no-op replacement", i + 1);
-                    }
+                // new_str 可以为空（表示删除），但不能为 null
+                String newStr = params.new_str != null ? params.new_str : "";
+                
+                // 检查是否为无意义替换
+                if (params.old_str.equals(newStr)) {
+                    log.warn("old_str and new_str are identical, this is a no-op replacement");
                 }
                 
                 Path targetPath = Path.of(params.path);
@@ -184,36 +152,20 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
                             String content = Files.readString(targetPath);
                             String originalContent = content;
                             
-                            List<Edit> edits = params.edits != null ? params.edits : new ArrayList<>();
-                            
-                            // 应用所有编辑
-                            int totalReplacements = 0;
-                            for (Edit edit : edits) {
-                                String oldContent = content;
-                                content = applyEdit(content, edit);
-                                
-                                // 计算替换次数
-                                if (!content.equals(oldContent)) {
-                                    if (edit.replaceAll) {
-                                        // 计算出现次数
-                                        int count = 0;
-                                        int index = 0;
-                                        while ((index = oldContent.indexOf(edit.old, index)) != -1) {
-                                            count++;
-                                            index += edit.old.length();
-                                        }
-                                        totalReplacements += count;
-                                    } else {
-                                        totalReplacements += 1;
-                                    }
-                                }
+                            // 只替换第一次出现
+                            int index = content.indexOf(params.old_str);
+                            if (index != -1) {
+                                String finalNewStr = params.new_str != null ? params.new_str : "";
+                                content = content.substring(0, index) + 
+                                         finalNewStr + 
+                                         content.substring(index + params.old_str.length());
                             }
                             
                             // 检查是否有变化
                             if (content.equals(originalContent)) {
                                 return Mono.just(ToolResult.error(
-                                    "No replacements were made. The old string was not found in the file.",
-                                    "No replacements made"
+                                    "No replacements were made. The old_str was not found in the file.",
+                                    "String not found"
                                 ));
                             }
                             
@@ -222,15 +174,14 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
                             
                             return Mono.just(ToolResult.ok(
                                 "",
-                                String.format("File successfully edited. Applied %d edit(s) with %d total replacement(s).",
-                                    edits.size(), totalReplacements)
+                                "File edited successfully."
                             ));
                             
                         } catch (Exception e) {
                             log.error("Failed to edit file: {}", params.path, e);
                             return Mono.just(ToolResult.error(
                                 String.format("Failed to edit. Error: %s", e.getMessage()),
-                                "Failed to edit file"
+                                "Edit failed"
                             ));
                         }
                     });
@@ -239,28 +190,10 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
                 log.error("Error in StrReplaceFile.execute", e);
                 return Mono.just(ToolResult.error(
                     String.format("Failed to edit file. Error: %s", e.getMessage()),
-                    "Failed to edit file"
+                    "Edit failed"
                 ));
             }
         });
-    }
-    
-    /**
-     * 应用单个编辑操作
-     */
-    private String applyEdit(String content, Edit edit) {
-        if (edit.replaceAll) {
-            return content.replace(edit.old, edit.newText);
-        } else {
-            // 只替换第一次出现
-            int index = content.indexOf(edit.old);
-            if (index != -1) {
-                return content.substring(0, index) + 
-                       edit.newText + 
-                       content.substring(index + edit.old.length());
-            }
-            return content;
-        }
     }
     
     /**

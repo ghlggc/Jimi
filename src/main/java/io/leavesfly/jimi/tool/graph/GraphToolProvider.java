@@ -132,7 +132,7 @@ public class GraphToolProvider implements ToolProvider {
                 tools.add(new CodeLocateTool(hybridSearchEngine, graphManager));
                 log.info("Registered CodeLocateTool (with hybrid search)");
             } else {
-                log.warn("VectorStore or EmbeddingProvider not available, CodeLocateTool not registered");
+                log.info("VectorStore or EmbeddingProvider not available, CodeLocateTool not registered");
             }
             
             // 2. ImpactAnalysisTool - 影响分析工具

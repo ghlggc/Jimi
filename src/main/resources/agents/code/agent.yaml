@@ -14,16 +14,19 @@ model: qwen3-coder-plus
 #model: qwen3-coder-flash
 #model: qwen3-next-80b-a3b-thinking
 #model: qwen3-next-80b-a3b-instruct
-#model: Moonshot-Kimi-K2-Instruct
 #model: kimi-k2-thinking
+#model: glm-4.7
 
 
 # 可用工具（专注于代码编写）
+# 可用工具列表
 tools:
-  - ReadFile       # 读取源代码
-  - WriteFile      # 创建新文件
-  - StrReplaceFile # 精确修改代码
-  - PatchFile      # 应用补丁
-  - Grep           # 搜索代码
-  - Glob           # 查找文件
-  - Think          # 代码设计思考
+  - Bash              # 执行 shell 命令
+  - ReadFile          # 读取文件内容
+  - WriteFile         # 写入文件内容
+  - StrReplaceFile    # 替换文件中的字符串
+  - Glob              # 文件路径模式匹配
+  - Grep              # 文本内容搜索
+  - SearchWeb         # 网络搜索
+  - FetchURL          # 获取 URL 内容
+  - SetTodoList       # 设置任务清单

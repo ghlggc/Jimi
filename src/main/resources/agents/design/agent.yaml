@@ -18,13 +18,18 @@ model: qwen3-max
 #model: Moonshot-Kimi-K2-Instruct
 #model: kimi-k2-thinking
 
+#model: glm-4.7
+
 # 可用工具(专注于设计和规划)
-# 注意:ask_human工具会通过HumanInteractionToolProvider自动注册,无需在此列出
+# 注意: ask_human工具会通过HumanInteractionToolProvider自动注册,无需在此列出
+# 注意: MetaTool通过MetaToolProvider SPI自动注册,无需在此列出
 tools:
-  - ReadFile      # 读取需求文档和现有代码
-  - WriteFile     # 编写设计文档
-  - Grep          # 搜索相关代码结构
-  - Glob          # 查找项目文件
-  - SearchWeb     # 搜索设计模式和最佳实践
-  - FetchURL      # 获取参考资料
-  - Think         # 设计思考和方案对比
+  - Bash              # 执行 shell 命令
+  - ReadFile          # 读取文件内容
+  - WriteFile         # 写入文件内容
+  - StrReplaceFile    # 替换文件中的字符串
+  - Glob              # 文件路径模式匹配
+  - Grep              # 文本内容搜索
+  - SearchWeb         # 网络搜索
+  - FetchURL          # 获取 URL 内容
+  - SetTodoList       # 设置任务清单

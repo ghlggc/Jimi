@@ -9,11 +9,10 @@ system_prompt: system_prompt.md
 system_prompt_args: { }
 
 # 指定模型（可选，如果不指定则使用全局默认模型）
-#model: qwen3-max
+model: qwen3-max
 #model: cursor-opus
 #model: composer
 #model: cursor-auto
-#model: qwen3-coder-flash
 #model: qwen3-coder-plus
 
 #model: qwen3-next-80b-a3b-thinking
@@ -23,36 +22,31 @@ system_prompt_args: { }
 
 #model: deepseek-v3.2-exp
 
-#model: Moonshot-Kimi-K2-Instruct
-#model: kimi-k2-thinking
-
 #model: qwen3:4b-thinking-2507-q8_0
 #model: qwen3:4b-instruct-2507-q8_0
-model: glm-4.7
+#model: glm-4.7
 #model: minimax-m2.1
 
 
 # 可用工具列表
+# 注意: MetaTool通过MetaToolProvider SPI自动注册,无需在此列出
 tools:
-  - Bash
-  - ReadFile
-  - WriteFile
-  - StrReplaceFile
-  - PatchFile
-  - Glob
-  - Grep
-  - SearchWeb
-  - FetchURL
-  - Think
-  - SetTodoList
-  - Task
-  - MetaTool
+  - Bash              # 执行 shell 命令
+  - ReadFile          # 读取文件内容
+  - WriteFile         # 写入文件内容
+  - StrReplaceFile    # 替换文件中的字符串
+  - Glob              # 文件路径模式匹配
+  - Grep              # 文本内容搜索
+  - SearchWeb         # 网络搜索
+  - FetchURL          # 获取 URL 内容
+  - SetTodoList       # 设置任务清单
+  - Task              # 任务管理
 
 # 子 Agent 配置
 subagents:
-  Plan-Agent:
-    path: plan/agent.yaml
-    description: 任务规划和分解，采用Plan-Execute模式
+#  Plan-Agent:
+#    path: plan/agent.yaml
+#    description: 任务规划和分解，采用Plan-Execute模式
   Design-Agent:
     path: design/agent.yaml
     description: 需求分析、架构设计和技术方案规划

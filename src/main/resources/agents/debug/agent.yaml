@@ -9,16 +9,20 @@ system_prompt: system_prompt.md
 system_prompt_args: {}
 
 # 指定模型（可选，如果不指定则使用全局默认模型）
-model: qwen3-coder-plus
+#model: qwen3-coder-plus
 #model: qwen3-max
 #model: qwen3-coder-flash
+model: glm-4.7
 
 
 # 可用工具（专注于调试）
 tools:
-  - Bash          # 运行代码验证
-  - ReadFile      # 读取源代码
-  - WriteFile     # 修复代码
-  - StrReplaceFile # 精确修改
-  - Grep          # 搜索相关代码
-  - Think         # 分析问题
+  - Bash              # 执行 shell 命令
+  - ReadFile          # 读取文件内容
+  - WriteFile         # 写入文件内容
+  - StrReplaceFile    # 替换文件中的字符串
+  - Glob              # 文件路径模式匹配
+  - Grep              # 文本内容搜索
+  - SearchWeb         # 网络搜索
+  - FetchURL          # 获取 URL 内容
+  - SetTodoList       # 设置任务清单

@@ -13,6 +13,8 @@ import io.leavesfly.jimi.engine.compaction.Compaction;
 import io.leavesfly.jimi.engine.compaction.SimpleCompaction;
 
 import io.leavesfly.jimi.engine.runtime.Runtime;
+import io.leavesfly.jimi.memory.MemoryExtractor;
+import io.leavesfly.jimi.memory.MemoryInjector;
 import io.leavesfly.jimi.retrieval.RetrievalPipeline;
 import io.leavesfly.jimi.skill.SkillMatcher;
 import io.leavesfly.jimi.skill.SkillProvider;
@@ -108,11 +110,11 @@ public class JimiEngine implements Engine {
             SkillProvider skillProvider
     ) {
         this(agent, runtime, context, toolRegistry, objectMapper, wire, compaction, 
-                isSubagent, skillMatcher, skillProvider, null, null, null);
+                isSubagent, skillMatcher, skillProvider, null, null, null, null, null);
     }
 
     /**
-     * 最完整构造函数（支持检索增强 + ReCAP）
+     * 最完整构造函数（支持检索增强 + ReCAP + 长期记忆）
      */
     public JimiEngine(
             Agent agent,
@@ -127,7 +129,9 @@ public class JimiEngine implements Engine {
             SkillProvider skillProvider,
             RetrievalPipeline retrievalPipeline,
             MemoryConfig memoryConfig,
-            ActivePromptBuilder promptBuilder
+            ActivePromptBuilder promptBuilder,
+            MemoryInjector memoryInjector,
+            MemoryExtractor memoryExtractor
     ) {
         this.agent = agent;
         this.runtime = runtime;
@@ -143,13 +147,15 @@ public class JimiEngine implements Engine {
         this.memoryConfig = memoryConfig;
         this.promptBuilder = promptBuilder;
         
-        // 创建执行器（传入所有组件）
+        // 创建执行器（传入所有组件，包括长期记忆）
         this.executor = new AgentExecutor(agent, runtime, context, wire, toolRegistry, compaction, 
                 isSubagent, skillMatcher, skillProvider, retrievalPipeline, 
-                promptBuilder, memoryConfig);
+                promptBuilder, memoryConfig, memoryInjector, memoryExtractor);
         
-        // 设置 Approval 事件转发
-        runtime.getApproval().asFlux().subscribe(wire::send);
+        // 设置 Approval 事件转发（仅主 Agent 订阅，避免子 Agent 重复转发导致重复审批）
+        if (!isSubagent) {
+            runtime.getApproval().asFlux().subscribe(wire::send);
+        }
         
         // 为所有实现 WireAware 接口的工具注入 Wire
         toolRegistry.getAllTools().forEach(tool -> {

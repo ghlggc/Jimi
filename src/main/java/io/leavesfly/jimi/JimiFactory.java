@@ -8,6 +8,9 @@ import io.leavesfly.jimi.config.MemoryConfig;
 import io.leavesfly.jimi.engine.context.ActivePromptBuilder;
 import io.leavesfly.jimi.llm.LLM;
 import io.leavesfly.jimi.llm.LLMFactory;
+import io.leavesfly.jimi.memory.MemoryExtractor;
+import io.leavesfly.jimi.memory.MemoryInjector;
+import io.leavesfly.jimi.memory.MemoryManager;
 import io.leavesfly.jimi.session.Session;
 import io.leavesfly.jimi.session.SessionManager;
 import io.leavesfly.jimi.engine.JimiEngine;
@@ -77,6 +80,12 @@ public class JimiFactory {
     private ActivePromptBuilder promptBuilder;   // ReCAP 提示构建器（可选）
     @Autowired(required = false)
     private MemoryConfig memoryConfig;           // ReCAP 记忆配置（可选）
+    @Autowired(required = false)
+    private MemoryManager memoryManager;  // 长期记忆管理器（可选）
+    @Autowired(required = false)
+    private MemoryInjector memoryInjector; // 长期记忆注入器（可选）
+    @Autowired(required = false)
+    private MemoryExtractor memoryExtractor; // 长期记忆提取器（可选）
 
 
     /**
@@ -140,11 +149,17 @@ public class JimiFactory {
 
                 // 7. 创建 ToolRegistry（包含 Task 工具和 MCP 工具）
                 ToolRegistry toolRegistry = createToolRegistry(builtinArgs, approval, agentSpec, runtime, mcpConfigFiles);
+                
+                // 7.5. 初始化长期记忆管理器（如果启用）
+                if (memoryManager != null && memoryConfig != null && memoryConfig.isLongTermEnabled()) {
+                    log.info("初始化长期记忆管理器...");
+                    memoryManager.initialize(runtime);
+                }
 
-                // 8. 创建 JimiEngine（注入 Compaction、Skill 组件、检索管线、ReCAP 组件）
+                // 8. 创建 JimiEngine（注入 Compaction、Skill 组件、检索管线、ReCAP 组件、长期记忆组件）
                 JimiEngine soul = new JimiEngine(agent, runtime, context, toolRegistry, objectMapper, 
                         new WireImpl(), compaction, false, skillMatcher, skillProvider, retrievalPipeline,
-                        memoryConfig, promptBuilder);
+                        memoryConfig, promptBuilder, memoryInjector, memoryExtractor);
 
                 // 9. 恢复上下文历史
                 return context.restore()
@@ -172,7 +187,8 @@ public class JimiFactory {
         // 创建基础工具注册表（使用 Spring 工厂）
         ToolRegistry registry = toolRegistryFactory.createStandardRegistry(
                 builtinArgs,
-                approval
+                approval,
+                runtime.getSession()
         );
         
         // 使用 ToolProvider SPI 机制加载工具

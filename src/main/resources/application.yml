@@ -103,7 +103,7 @@ jimi:
       vector-weight: 0.4
       min-similarity: 0.3
 
-  # 记忆模块配置 (ReCAP 优化)
+  # 记忆模块配置 (ReCAP 优化 + 长期记忆)
   memory:
     # 有界提示最大 Token 数
     active-prompt-max-tokens: 4000
@@ -113,6 +113,20 @@ jimi:
     enable-recap: false
     # 最大递归深度
     max-recursion-depth: 5
+    
+    # 长期记忆配置
+    # 是否启用长期记忆（默认关闭）
+    long-term-enabled: true
+    # 是否自动从工具结果提取知识
+    auto-extract: true
+    # 是否自动注入相关知识到上下文
+    auto-inject: true
+    # 最多保留的知识条目数量
+    max-insights: 100
+    # 知识过期天数（超过此期限未访问的知识将被清理）
+    insight-expiry-days: 90
+    # 最多保留的任务历史数量（超出后按时间清理）
+    max-task-history: 50
 
   # 编程式工具调用配置 (Programmatic Tool Calling)
   meta-tool:

@@ -206,10 +206,12 @@ public class ShellUI implements AutoCloseable {
 
     /**
      * 订阅 Wire 消息总线
+     * 使用 boundedElastic 调度器处理可能阻塞的消息（如审批请求）
      */
     private void subscribeWire() {
         Wire wire = soul.getWire();
         wireSubscription = wire.asFlux()
+                .publishOn(reactor.core.scheduler.Schedulers.boundedElastic())
                 .subscribe(this::handleWireMessage);
     }
 

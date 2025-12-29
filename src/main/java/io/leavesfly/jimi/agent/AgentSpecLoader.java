@@ -6,6 +6,9 @@ import io.leavesfly.jimi.exception.AgentSpecException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
 import reactor.core.publisher.Mono;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
@@ -18,8 +21,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -123,20 +128,41 @@ class AgentSpecLoader {
 
     /**
      * 从类路径资源预加载(JAR包模式)
+     * 使用 Spring ResourcePatternResolver 动态扫描所有 agent 目录
      */
     private void preloadFromClasspath() {
-        String[] agentDirs = {"default", "code", "debug", "test", "design", "doc", "review", "build", "deploy", "research"};
-        for (String dir : agentDirs) {
-            String resourcePath = "agents/" + dir + "/agent.yaml";
-            try {
-                URL resource = getClass().getClassLoader().getResource(resourcePath);
-                if (resource != null) {
-                    loadAgentSpecFromResource(resourcePath, dir).block();
+        try {
+            ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+            // 动态扫描 classpath 下所有 agents/*/agent.yaml 文件
+            Resource[] resources = resolver.getResources("classpath:agents/*/agent.yaml");
+            
+            Set<String> loadedAgents = new HashSet<>();
+            for (Resource resource : resources) {
+                try {
+                    // 从 URL 路径中提取 agent 目录名
+                    String urlPath = resource.getURL().toString();
+                    // 路径格式: .../agents/{agentName}/agent.yaml
+                    int agentsIdx = urlPath.indexOf("agents/");
+                    if (agentsIdx == -1) continue;
+                    
+                    String remaining = urlPath.substring(agentsIdx + 7); // 跳过 "agents/"
+                    int slashIdx = remaining.indexOf('/');
+                    if (slashIdx == -1) continue;
+                    
+                    String agentName = remaining.substring(0, slashIdx);
+                    if (loadedAgents.contains(agentName)) continue;
+                    
+                    String resourcePath = "agents/" + agentName + "/agent.yaml";
+                    loadAgentSpecFromResource(resourcePath, agentName).block();
+                    loadedAgents.add(agentName);
                     log.debug("Preloaded agent spec from classpath: {}", resourcePath);
+                } catch (Exception e) {
+                    log.warn("Failed to preload agent spec from classpath: {}", resource, e);
                 }
-            } catch (Exception e) {
-                log.warn("Failed to preload agent spec from classpath: {}", resourcePath, e);
             }
+            log.info("Discovered and preloaded {} agents from classpath", loadedAgents.size());
+        } catch (IOException e) {
+            log.warn("Failed to scan classpath for agents", e);
         }
     }
 

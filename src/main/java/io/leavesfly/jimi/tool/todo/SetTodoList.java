@@ -1,6 +1,10 @@
 package io.leavesfly.jimi.tool.todo;
 
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import io.leavesfly.jimi.session.Session;
 import io.leavesfly.jimi.tool.AbstractTool;
 import io.leavesfly.jimi.tool.ToolResult;
 import io.leavesfly.jimi.tool.ToolResultBuilder;
@@ -14,6 +18,9 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,6 +34,19 @@ import java.util.List;
 @Component
 @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class SetTodoList extends AbstractTool<SetTodoList.Params> {
+    
+    private static final String TODO_DIR = ".jimi";
+    private static final String TODO_FILE = "todos.json";
+    
+    private Session session;
+    private final ObjectMapper objectMapper;
+    
+    /**
+     * 设置 Session（运行时注入）
+     */
+    public void setSession(Session session) {
+        this.session = session;
+    }
     
     /**
      * 待办事项
@@ -141,30 +161,40 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
         super(
             "SetTodoList",
             """
-            更新整份待办事项列表（Todo List）。
-            
+            更新待办事项列表（Todo List），支持增量操作。
+                
             使用场景：
             - 当一个任务包含多个子任务/里程碑时，用于拆解并追踪进度
             - 当一次请求中包含多项任务时，用于统一维护它们的状态
-            
-            使用约束：
-            - 这是唯一的待办工具，每次操作都需要提交“完整的”待办列表
-            - 请正确维护每项的标题与状态（状态仅支持：Pending、In Progress、Done）
-            
-            参数：
-            - todos：待办事项数组，每项包含 title 与 status
-            
-            示例：
+                
+            操作模式：
+            - todos：覆盖模式 - 用新列表替换现有列表
+            - adds：增量添加 - 只添加新任务（不影响现有任务）
+            - updates：增量更新 - 只更新指定任务的状态
+            - deletes：增量删除 - 只删除指定的任务
+                
+            持久化：
+            - 待办列表会自动保存，会话重启后不会丢失
+            - 可以只使用 adds/updates/deletes 进行增量操作，无需每次传入完整列表
+                
+            示例 - 增量添加：
             {
-              "todos": [
-                {"title": "Research API integration", "status": "Done"},
-                {"title": "Implement authentication", "status": "In Progress"},
-                {"title": "Write unit tests", "status": "Pending"}
+              "adds": [
+                {"id": "task1", "title": "New task", "status": "Pending"}
+              ]
+            }
+                
+            示例 - 增量更新：
+            {
+              "updates": [
+                {"id": "task1", "status": "Done"}
               ]
             }
             """,
             Params.class
         );
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
     }
     
     @Override
@@ -172,8 +202,12 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
         return Mono.defer(() -> {
             ToolResultBuilder trb = new ToolResultBuilder();
             
-            List<Todo> list = new ArrayList<>();
-            if (params != null && params.getTodos() != null) {
+            // 1. 加载已持久化的待办列表
+            List<Todo> list = loadTodos();
+            
+            // 2. 如果提供了 todos 参数，用它覆盖现有列表
+            if (params != null && params.getTodos() != null && !params.getTodos().isEmpty()) {
+                list = new ArrayList<>();
                 for (Todo t : params.getTodos()) {
                     String title = (t != null && t.getTitle() != null) ? t.getTitle().trim() : "(未命名)";
                     String status = (t != null) ? normalizeStatus(t.getStatus()) : "Pending";
@@ -186,7 +220,7 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
                 }
             }
             
-            // 更新现有待办的状态（按ID或标题匹配）
+            // 3. 更新现有待办的状态（按ID或标题匹配）
             if (params != null && params.getUpdates() != null) {
                 for (Todo upd : params.getUpdates()) {
                     if (upd == null) continue;
@@ -208,7 +242,7 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
                 }
             }
             
-            // 添加新的待办（仅当ID/标题不存在时添加）
+            // 4. 添加新的待办（仅当ID/标题不存在时添加）
             if (params != null && params.getAdds() != null) {
                 for (Todo add : params.getAdds()) {
                     if (add == null || add.getTitle() == null) continue;
@@ -225,7 +259,7 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
                 }
             }
             
-            // 删除指定的待办项
+            // 5. 删除指定的待办项
             if (params != null && params.getDeletes() != null && !params.getDeletes().isEmpty()) {
                 list.removeIf(t -> {
                     for (String key : params.getDeletes()) {
@@ -241,7 +275,7 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
                 });
             }
             
-            // 移除完成项
+            // 6. 移除完成项
             if (params != null && params.isRemoveCompleted()) {
                 List<Todo> filtered = new ArrayList<>();
                 for (Todo t : list) {
@@ -253,6 +287,10 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
                 list = filtered;
             }
             
+            // 7. 持久化待办列表
+            saveTodos(list);
+            
+            // 8. 生成输出
             if (list.isEmpty()) {
                 trb.write("暂无待办事项。\n");
                 return Mono.just(trb.ok("空的待办清单", "空列表"));
@@ -287,5 +325,65 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
             
             return Mono.just(trb.ok("待办清单已更新" , brief));
         });
+    }
+    
+    /**
+     * 获取持久化文件路径
+     */
+    private Path getTodoFilePath() {
+        if (session == null) {
+            return null;
+        }
+        Path workDir = session.getWorkDir();
+        return workDir.resolve(TODO_DIR).resolve(TODO_FILE);
+    }
+    
+    /**
+     * 加载已持久化的待办列表
+     */
+    private List<Todo> loadTodos() {
+        Path todoFile = getTodoFilePath();
+        if (todoFile == null || !Files.exists(todoFile)) {
+            return new ArrayList<>();
+        }
+        
+        try {
+            String content = Files.readString(todoFile);
+            if (content == null || content.isBlank()) {
+                return new ArrayList<>();
+            }
+            List<Todo> todos = objectMapper.readValue(content, new TypeReference<List<Todo>>() {});
+            log.debug("Loaded {} todos from {}", todos.size(), todoFile);
+            return todos;
+        } catch (IOException e) {
+            log.warn("Failed to load todos from {}: {}", todoFile, e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+    
+    /**
+     * 保存待办列表到文件
+     */
+    private void saveTodos(List<Todo> todos) {
+        Path todoFile = getTodoFilePath();
+        if (todoFile == null) {
+            log.debug("Session not set, skipping todo persistence");
+            return;
+        }
+        
+        try {
+            // 确保目录存在
+            Path todoDir = todoFile.getParent();
+            if (!Files.exists(todoDir)) {
+                Files.createDirectories(todoDir);
+            }
+            
+            // 写入文件
+            String content = objectMapper.writeValueAsString(todos);
+            Files.writeString(todoFile, content);
+            log.debug("Saved {} todos to {}", todos.size(), todoFile);
+        } catch (IOException e) {
+            log.warn("Failed to save todos to {}: {}", todoFile, e.getMessage());
+        }
     }
 }

@@ -672,7 +672,8 @@ public class AsyncSubagentManager {
     private ToolRegistry createToolRegistry(Agent agent, Runtime runtime) {
         ToolRegistry registry = toolRegistryFactory.createStandardRegistry(
                 runtime.getBuiltinArgs(),
-                runtime.getApproval()
+                runtime.getApproval(),
+                runtime.getSession()
         );
         
         // 应用 ToolProvider SPI

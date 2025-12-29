@@ -52,19 +52,15 @@ public class MetaToolProvider implements ToolProvider {
     
     @Override
     public boolean supports(AgentSpec agentSpec, Runtime runtime) {
-        // 检查配置是否启用
+        // 仅检查配置是否启用
+        // 注意：MetaTool 通过 SPI 自动注册，不应在 Agent 的 tools 列表中手动声明
+        // 否则会因时序问题导致 'Tool not found in registry' 警告
         if (!metaToolConfig.isEnabled()) {
-            log.debug("MetaToolProvider: MetaTool is disabled in configuration");
+            log.info("MetaToolProvider: MetaTool is disabled in configuration (jimi.meta-tool.enabled=false)");
             return false;
         }
         
-        // 检查 Agent 是否配置了 MetaTool
-        if (agentSpec.getTools() == null || !agentSpec.getTools().contains("MetaTool")) {
-            log.debug("MetaToolProvider: Agent '{}' does not include MetaTool in its tools list", 
-                    agentSpec.getName());
-            return false;
-        }
-        
+        log.debug("MetaToolProvider: Will provide MetaTool for agent '{}'", agentSpec.getName());
         return true;
     }
     

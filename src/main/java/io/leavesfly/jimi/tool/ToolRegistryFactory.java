@@ -5,10 +5,10 @@ import io.leavesfly.jimi.agent.AgentSpec;
 import io.leavesfly.jimi.engine.approval.Approval;
 import io.leavesfly.jimi.engine.runtime.BuiltinSystemPromptArgs;
 import io.leavesfly.jimi.engine.runtime.Runtime;
+import io.leavesfly.jimi.session.Session;
 import io.leavesfly.jimi.tool.bash.Bash;
 import io.leavesfly.jimi.tool.file.*;
 import io.leavesfly.jimi.tool.task.Task;
-import io.leavesfly.jimi.tool.think.Think;
 import io.leavesfly.jimi.tool.todo.SetTodoList;
 import io.leavesfly.jimi.tool.web.FetchURL;
 import io.leavesfly.jimi.tool.web.WebSearch;
@@ -44,6 +44,19 @@ public class ToolRegistryFactory {
      * @return 配置好的 ToolRegistry 实例
      */
     public ToolRegistry createStandardRegistry(BuiltinSystemPromptArgs builtinArgs, Approval approval) {
+        return createStandardRegistry(builtinArgs, approval, null);
+    }
+    
+    /**
+     * 创建标准工具注册表（带 Session）
+     * 包含所有内置工具
+     * 
+     * @param builtinArgs 内置系统提示词参数
+     * @param approval    审批对象
+     * @param session     会话对象（用于 Todo 持久化）
+     * @return 配置好的 ToolRegistry 实例
+     */
+    public ToolRegistry createStandardRegistry(BuiltinSystemPromptArgs builtinArgs, Approval approval, Session session) {
         ToolRegistry registry = new ToolRegistry(objectMapper);
         
         // 注册文件工具
@@ -52,7 +65,7 @@ public class ToolRegistryFactory {
         registry.register(createStrReplaceFile(builtinArgs, approval));
         registry.register(createGlob(builtinArgs));
         registry.register(createGrep(builtinArgs));
-        registry.register(createPatchFile(builtinArgs, approval));
+        // PatchFile 已弃用，统一使用 StrReplaceFile（参数更简单，LLM 更容易生成正确格式）
         
         // 注册 Bash 工具
         registry.register(createBash(approval));
@@ -62,11 +75,8 @@ public class ToolRegistryFactory {
 
         registry.register(createWebSearch());
         
-        // 注册 Think 工具
-        registry.register(createThink());
-        
         // 注册 Todo 工具
-        registry.register(createSetTodoList());
+        registry.register(createSetTodoList(session));
         
         log.info("Created standard tool registry with {} tools", registry.getToolNames().size());
         return registry;
@@ -120,16 +130,6 @@ public class ToolRegistryFactory {
     }
     
     /**
-     * 创建 PatchFile 工具实例
-     */
-    private PatchFile createPatchFile(BuiltinSystemPromptArgs builtinArgs, Approval approval) {
-        PatchFile tool = applicationContext.getBean(PatchFile.class);
-        tool.setBuiltinArgs(builtinArgs);
-        tool.setApproval(approval);
-        return tool;
-    }
-    
-    /**
      * 创建 Bash 工具实例
      */
     private Bash createBash(Approval approval) {
@@ -139,17 +139,14 @@ public class ToolRegistryFactory {
     }
     
     /**
-     * 创建 Think 工具实例
-     */
-    private Think createThink() {
-        return applicationContext.getBean(Think.class);
-    }
-    
-    /**
      * 创建 SetTodoList 工具实例
      */
-    private SetTodoList createSetTodoList() {
-        return applicationContext.getBean(SetTodoList.class);
+    private SetTodoList createSetTodoList(Session session) {
+        SetTodoList tool = applicationContext.getBean(SetTodoList.class);
+        if (session != null) {
+            tool.setSession(session);
+        }
+        return tool;
     }
     
     /**

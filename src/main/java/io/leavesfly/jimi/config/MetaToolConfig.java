@@ -2,15 +2,15 @@ package io.leavesfly.jimi.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 
 /**
  * MetaTool 配置类
  * 
  * 配置编程式工具调用（Programmatic Tool Calling）功能
+ * 
+ * 注意：不使用 @Configuration，通过 @ConfigurationPropertiesScan 激活
  */
 @Data
-@Configuration
 @ConfigurationProperties(prefix = "jimi.meta-tool")
 public class MetaToolConfig {
     
