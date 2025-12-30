@@ -1,6 +1,6 @@
 package io.leavesfly.jimi.ui.notification;
 
-import io.leavesfly.jimi.config.ShellUIConfig;
+import io.leavesfly.jimi.config.info.ShellUIConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

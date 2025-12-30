@@ -258,13 +258,13 @@ jimi> /graph load
 
 ### entities.jsonl (实体文件)
 ```json
-{"id":"CLASS:io.leavesfly.jimi.graph.GraphManager","type":"CLASS","name":"GraphManager","qualifiedName":"io.leavesfly.jimi.graph.GraphManager","filePath":"GraphManager.java","visibility":"public"}
-{"id":"METHOD:io.leavesfly.jimi.graph.GraphManager.buildGraph","type":"METHOD","name":"buildGraph","qualifiedName":"io.leavesfly.jimi.graph.GraphManager.buildGraph","filePath":"GraphManager.java","visibility":"public"}
+{"id":"CLASS:io.leavesfly.jimi.knowledge.graph.GraphManager","type":"CLASS","name":"GraphManager","qualifiedName":"io.leavesfly.jimi.knowledge.graph.GraphManager","filePath":"GraphManager.java","visibility":"public"}
+{"id":"METHOD:io.leavesfly.jimi.knowledge.graph.GraphManager.buildGraph","type":"METHOD","name":"buildGraph","qualifiedName":"io.leavesfly.jimi.knowledge.graph.GraphManager.buildGraph","filePath":"GraphManager.java","visibility":"public"}
 ```
 
 ### relations.jsonl (关系文件)
 ```json
-{"id":"REL:1","sourceId":"CLASS:io.leavesfly.jimi.graph.GraphManager","targetId":"CLASS:io.leavesfly.jimi.graph.builder.GraphBuilder","type":"CONTAINS"}
+{"id":"REL:1","sourceId":"CLASS:io.leavesfly.jimi.knowledge.graph.GraphManager","targetId":"CLASS:io.leavesfly.jimi.knowledge.builder.graph.GraphBuilder","type":"CONTAINS"}
 {"id":"REL:2","sourceId":"METHOD:buildGraph","targetId":"METHOD:graphBuilder.buildGraph","type":"CALLS"}
 ```
 

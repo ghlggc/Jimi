@@ -248,7 +248,7 @@ public class MemoryConfig {
 // src/main/java/io/leavesfly/jimi/engine/context/ActivePromptBuilder.java
 package io.leavesfly.jimi.engine.context;
 
-import io.leavesfly.jimi.config.MemoryConfig;
+import io.leavesfly.jimi.config.info.MemoryConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -262,16 +262,16 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 public class ActivePromptBuilder {
-    
+
     private final MemoryConfig config;
-    
+
     public ActivePromptBuilder(MemoryConfig config) {
         this.config = config;
     }
-    
+
     /**
      * 构建增强的系统提示
-     * 
+     *
      * @param baseSystemPrompt 基础系统提示词
      * @param highLevelIntent 高层意图（从首条用户消息提取）
      * @param keyInsights 关键发现列表
@@ -285,66 +285,66 @@ public class ActivePromptBuilder {
             int currentDepth
     ) {
         StringBuilder prompt = new StringBuilder();
-        
+
         // 1. Few-shot 只在顶层包含
         if (currentDepth == 0) {
             prompt.append(baseSystemPrompt);
         }
-        
+
         // 2. 高层意图始终保持
         if (highLevelIntent != null && !highLevelIntent.isEmpty()) {
             prompt.append("\n\n## 🎯 高层目标\n");
             prompt.append(highLevelIntent);
         }
-        
+
         // 3. 关键发现（滑窗压缩）
         if (keyInsights != null && !keyInsights.isEmpty()) {
             prompt.append("\n\n## 💡 关键发现\n");
             prompt.append(compressInsights(keyInsights));
         }
-        
+
         // 4. 截断到限制
         String result = prompt.toString();
         return truncateToLimit(result);
     }
-    
+
     /**
      * 压缩关键发现：只保留最近 N 条
      */
     private String compressInsights(List<String> insights) {
         int windowSize = config.getInsightsWindowSize();
         int start = Math.max(0, insights.size() - windowSize);
-        
+
         return insights.subList(start, insights.size())
                 .stream()
                 .map(s -> "- " + s)
                 .collect(Collectors.joining("\n"));
     }
-    
+
     /**
      * 截断到 Token 限制（保留开头和结尾）
      */
     private String truncateToLimit(String text) {
         int estimatedTokens = estimateTokens(text);
         int maxTokens = config.getActivePromptMaxTokens();
-        
+
         if (estimatedTokens <= maxTokens) {
             return text;
         }
-        
-        log.warn("Prompt 超限 (估算: {} tokens, 上限: {} tokens)，执行截断", 
+
+        log.warn("Prompt 超限 (估算: {} tokens, 上限: {} tokens)，执行截断",
                 estimatedTokens, maxTokens);
-        
+
         // 简单策略：保留前 1/3 和后 2/3 的字符
         int targetChars = (int) (text.length() * maxTokens / (double) estimatedTokens);
         int headLen = targetChars / 3;
         int tailLen = targetChars * 2 / 3;
-        
-        return text.substring(0, headLen) 
-                + "\n\n...[已截断中间内容]...\n\n" 
+
+        return text.substring(0, headLen)
+                + "\n\n...[已截断中间内容]...\n\n"
                 + text.substring(text.length() - tailLen);
     }
-    
+
     /**
      * 估算 Token 数量（字符数 / 4）
      */
@@ -1126,10 +1126,10 @@ gantt
 - [上下文压缩设计](./CONTEXT_COMPACTION.md)
 
 ### 相关代码
-- [JimiEngine.java](../src/main/java/io/leavesfly/jimi/engine/JimiEngine.java)
-- [AgentExecutor.java](../src/main/java/io/leavesfly/jimi/engine/AgentExecutor.java)
-- [Context.java](../src/main/java/io/leavesfly/jimi/engine/context/Context.java)
-- [Task.java](../src/main/java/io/leavesfly/jimi/tool/task/Task.java)
+- [JimiEngine.java](../src/main/java/io/leavesfly/jimi/core/engine/JimiEngine.java)
+- [AgentExecutor.java](../src/main/java/io/leavesfly/jimi/core/engine/AgentExecutor.java)
+- [Context.java](../src/main/java/io/leavesfly/jimi/core/engine/context/Context.java)
+- [Task.java](../src/main/java/io/leavesfly/jimi/tool/core/task/Task.java)
 
 ---
 

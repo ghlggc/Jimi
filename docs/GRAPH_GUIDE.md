@@ -170,7 +170,7 @@ Agent: [调用 CodeLocateTool]
 
 用户: "分析修改 GraphBuilder 的影响"
 Agent: [调用 ImpactAnalysisTool]
-  - entityId: "io.leavesfly.jimi.graph.builder.GraphBuilder"
+  - entityId: "io.leavesfly.jimi.knowledge.builder.graph.GraphBuilder"
   - analysisType: DOWNSTREAM
   - maxDepth: 3
 ```

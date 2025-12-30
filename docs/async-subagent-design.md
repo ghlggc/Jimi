@@ -76,6 +76,10 @@ src/main/java/io/leavesfly/jimi/
 ```java
 package io.leavesfly.jimi.engine.async;
 
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentCallback;
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentMode;
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentStatus;
+
 @Data
 @Builder
 public class AsyncSubagent {
@@ -129,6 +133,8 @@ public enum AsyncSubagentMode {
 ```java
 package io.leavesfly.jimi.engine.async;
 
+import io.leavesfly.jimi.core.engine.async.AsyncSubagent;
+
 @FunctionalInterface
 public interface AsyncSubagentCallback {
     /**
@@ -144,36 +150,41 @@ public interface AsyncSubagentCallback {
 ```java
 package io.leavesfly.jimi.engine.async;
 
+import io.leavesfly.jimi.core.engine.async.AsyncSubagent;
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentCallback;
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentMode;
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentStatus;
+
 @Slf4j
 @Service
 public class AsyncSubagentManager {
-    
+
     // 活跃的异步子代理映射
     private final ConcurrentHashMap<String, AsyncSubagent> activeSubagents = new ConcurrentHashMap<>();
-    
+
     // 已完成的子代理（保留最近N个）
     private final LinkedHashMap<String, AsyncSubagent> completedSubagents = new LinkedHashMap<>();
     private static final int MAX_COMPLETED_CACHE = 50;
-    
+
     // 后台执行线程池
     private final Scheduler asyncScheduler = Schedulers.newBoundedElastic(
-        10,                    // 最大线程数
-        100,                   // 最大排队任务
-        "async-subagent"       // 线程名前缀
+            10,                    // 最大线程数
+            100,                   // 最大排队任务
+            "async-subagent"       // 线程名前缀
     );
-    
+
     @Autowired
     private ObjectMapper objectMapper;
-    
+
     @Autowired
     private ToolRegistryFactory toolRegistryFactory;
-    
+
     @Autowired
     private AgentRegistry agentRegistry;
-    
+
     @Autowired
     private List<ToolProvider> toolProviders;
-    
+
     /**
      * 启动异步子代理（Fire-and-Forget 模式）
      */
@@ -187,7 +198,7 @@ public class AsyncSubagentManager {
     ) {
         return Mono.defer(() -> {
             String subagentId = UUID.randomUUID().toString().substring(0, 8);
-            
+
             // 创建异步子代理实体
             AsyncSubagent asyncSubagent = AsyncSubagent.builder()
                     .id(subagentId)
@@ -199,28 +210,28 @@ public class AsyncSubagentManager {
                     .callback(callback)
                     .timeout(timeout)
                     .build();
-            
+
             // 注册到活跃列表
             activeSubagents.put(subagentId, asyncSubagent);
-            
+
             // 后台启动执行
             Disposable subscription = executeInBackground(asyncSubagent, runtime, prompt, parentWire)
                     .subscribeOn(asyncScheduler)
                     .subscribe();
-            
+
             asyncSubagent.setSubscription(subscription);
             asyncSubagent.setStatus(AsyncSubagentStatus.RUNNING);
-            
+
             // 发送启动消息
             if (parentWire != null) {
-                parentWire.send(new AsyncSubagentStarted(subagentId, agent.getName(), 
+                parentWire.send(new AsyncSubagentStarted(subagentId, agent.getName(),
                         AsyncSubagentMode.FIRE_AND_FORGET.name(), Instant.now()));
             }
-            
+
             return Mono.just(subagentId);
         });
     }
-    
+
     /**
      * 后台执行子代理
      */
@@ -236,10 +247,10 @@ public class AsyncSubagentManager {
                 Path historyFile = createAsyncHistoryFile(asyncSubagent.getId());
                 Context context = new Context(historyFile, objectMapper);
                 asyncSubagent.setContext(context);
-                
+
                 // 创建工具注册表
                 ToolRegistry toolRegistry = createToolRegistry(asyncSubagent.getAgent(), runtime);
-                
+
                 // 创建引擎
                 JimiEngine engine = new JimiEngine(
                         asyncSubagent.getAgent(),
@@ -254,50 +265,50 @@ public class AsyncSubagentManager {
                         null
                 );
                 asyncSubagent.setEngine(engine);
-                
+
                 // Wire 事件转发
                 if (parentWire != null) {
                     engine.getWire().asFlux().subscribe(msg -> {
                         // 包装为异步进度消息
                         parentWire.send(new AsyncSubagentProgress(
-                                asyncSubagent.getId(), 
-                                msg.getClass().getSimpleName(), 
+                                asyncSubagent.getId(),
+                                msg.getClass().getSimpleName(),
                                 0
                         ));
                     });
                 }
-                
+
                 // 执行（带超时）
                 Mono<Void> execution = engine.run(prompt);
                 if (asyncSubagent.getTimeout() != null) {
                     execution = execution.timeout(asyncSubagent.getTimeout());
                 }
-                
+
                 return execution
                         .doOnSuccess(v -> handleComplete(asyncSubagent, parentWire))
                         .doOnError(e -> handleError(asyncSubagent, e, parentWire));
-                        
+
             } catch (Exception e) {
                 return Mono.error(e);
             }
         });
     }
-    
+
     /**
      * 处理完成
      */
     private void handleComplete(AsyncSubagent asyncSubagent, @Nullable Wire parentWire) {
         asyncSubagent.setStatus(AsyncSubagentStatus.COMPLETED);
         asyncSubagent.setEndTime(Instant.now());
-        
+
         // 提取结果
         String result = extractResult(asyncSubagent.getContext());
         asyncSubagent.setResult(result);
-        
+
         // 移动到已完成列表
         activeSubagents.remove(asyncSubagent.getId());
         addToCompleted(asyncSubagent);
-        
+
         // 发送完成消息
         if (parentWire != null) {
             Duration duration = Duration.between(asyncSubagent.getStartTime(), asyncSubagent.getEndTime());
@@ -305,7 +316,7 @@ public class AsyncSubagentManager {
                     asyncSubagent.getId(), result, true, duration
             ));
         }
-        
+
         // 执行回调
         if (asyncSubagent.getCallback() != null) {
             try {
@@ -314,10 +325,10 @@ public class AsyncSubagentManager {
                 log.error("Callback error for subagent {}", asyncSubagent.getId(), e);
             }
         }
-        
+
         log.info("Async subagent {} completed", asyncSubagent.getId());
     }
-    
+
     /**
      * 处理错误
      */
@@ -329,20 +340,20 @@ public class AsyncSubagentManager {
         }
         asyncSubagent.setEndTime(Instant.now());
         asyncSubagent.setError(error);
-        
+
         activeSubagents.remove(asyncSubagent.getId());
         addToCompleted(asyncSubagent);
-        
+
         if (parentWire != null) {
             Duration duration = Duration.between(asyncSubagent.getStartTime(), asyncSubagent.getEndTime());
             parentWire.send(new AsyncSubagentCompleted(
                     asyncSubagent.getId(), error.getMessage(), false, duration
             ));
         }
-        
+
         log.error("Async subagent {} failed", asyncSubagent.getId(), error);
     }
-    
+
     /**
      * 查询子代理状态
      */
@@ -351,14 +362,14 @@ public class AsyncSubagentManager {
         if (active != null) return Optional.of(active);
         return Optional.ofNullable(completedSubagents.get(id));
     }
-    
+
     /**
      * 列出所有活跃子代理
      */
     public List<AsyncSubagent> listActive() {
         return new ArrayList<>(activeSubagents.values());
     }
-    
+
     /**
      * 取消子代理
      */
@@ -374,7 +385,7 @@ public class AsyncSubagentManager {
         }
         return false;
     }
-    
+
     /**
      * 优雅关闭所有子代理
      */
@@ -389,7 +400,7 @@ public class AsyncSubagentManager {
         activeSubagents.clear();
         asyncScheduler.dispose();
     }
-    
+
     // ... 辅助方法省略
 }
 ```

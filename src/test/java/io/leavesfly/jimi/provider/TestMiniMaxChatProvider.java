@@ -1,7 +1,7 @@
 package io.leavesfly.jimi.provider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.leavesfly.jimi.config.ConfigLoader;
+import io.leavesfly.jimi.config.JimiConfiguration;
 import io.leavesfly.jimi.config.JimiConfig;
 import io.leavesfly.jimi.llm.ChatCompletionChunk;
 import io.leavesfly.jimi.llm.ChatCompletionResult;
@@ -24,7 +24,7 @@ public class TestMiniMaxChatProvider {
     @Test
     public void testStreamingResponse() {
         ObjectMapper objectMapper = new ObjectMapper();
-        JimiConfig jimiConfig = new ConfigLoader(objectMapper).loadConfig(null);
+        JimiConfig jimiConfig = JimiConfiguration.loadConfig(objectMapper, null);
         
         // 检查MiniMax配置是否存在
         if (!jimiConfig.getProviders().containsKey("minimax")) {
@@ -69,7 +69,7 @@ public class TestMiniMaxChatProvider {
     @Test
     public void testNonStreamingResponse() {
         ObjectMapper objectMapper = new ObjectMapper();
-        JimiConfig jimiConfig = new ConfigLoader(objectMapper).loadConfig(null);
+        JimiConfig jimiConfig = JimiConfiguration.loadConfig(objectMapper, null);
         
         // 检查MiniMax配置是否存在
         if (!jimiConfig.getProviders().containsKey("minimax")) {
@@ -101,7 +101,7 @@ public class TestMiniMaxChatProvider {
     @Test
     public void testCodeGeneration() {
         ObjectMapper objectMapper = new ObjectMapper();
-        JimiConfig jimiConfig = new ConfigLoader(objectMapper).loadConfig(null);
+        JimiConfig jimiConfig = JimiConfiguration.loadConfig(objectMapper, null);
         
         // 检查MiniMax配置是否存在
         if (!jimiConfig.getProviders().containsKey("minimax")) {
@@ -133,7 +133,7 @@ public class TestMiniMaxChatProvider {
     @Test
     public void testLightningModel() {
         ObjectMapper objectMapper = new ObjectMapper();
-        JimiConfig jimiConfig = new ConfigLoader(objectMapper).loadConfig(null);
+        JimiConfig jimiConfig = JimiConfiguration.loadConfig(objectMapper, null);
         
         // 检查MiniMax配置是否存在
         if (!jimiConfig.getProviders().containsKey("minimax")) {

@@ -2,14 +2,14 @@ package io.leavesfly.jimi.command.handlers;
 
 import io.leavesfly.jimi.command.CommandContext;
 import io.leavesfly.jimi.command.CommandHandler;
-import io.leavesfly.jimi.retrieval.CodeChunk;
+import io.leavesfly.jimi.knowledge.retrieval.CodeChunk;
 import io.leavesfly.jimi.ui.shell.output.OutputFormatter;
-import io.leavesfly.jimi.wiki.ChangeDetector;
+import io.leavesfly.jimi.knowledge.wiki.ChangeDetector;
 
-import io.leavesfly.jimi.wiki.FileChange;
-import io.leavesfly.jimi.wiki.WikiGenerator;
-import io.leavesfly.jimi.wiki.WikiIndexManager;
-import io.leavesfly.jimi.wiki.WikiValidator;
+import io.leavesfly.jimi.knowledge.wiki.FileChange;
+import io.leavesfly.jimi.knowledge.wiki.WikiGenerator;
+import io.leavesfly.jimi.knowledge.wiki.WikiIndexManager;
+import io.leavesfly.jimi.knowledge.wiki.WikiValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

@@ -1,7 +1,7 @@
 package io.leavesfly.jimi.provider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.leavesfly.jimi.config.ConfigLoader;
+import io.leavesfly.jimi.config.JimiConfiguration;
 import io.leavesfly.jimi.config.JimiConfig;
 import io.leavesfly.jimi.llm.ChatCompletionChunk;
 import io.leavesfly.jimi.llm.ChatCompletionResult;
@@ -19,7 +19,7 @@ public class TestKimiChatProvider {
     @Test
     public void test() {
         ObjectMapper objectMapper = new ObjectMapper();
-        JimiConfig jimiConfig = new ConfigLoader(objectMapper).loadConfig(null);
+        JimiConfig jimiConfig = JimiConfiguration.loadConfig(objectMapper, null);
         KimiChatProvider provider = new KimiChatProvider(
                 "kimi-k2-thinking-turbo",
                 jimiConfig.getProviders().get("kimi"),

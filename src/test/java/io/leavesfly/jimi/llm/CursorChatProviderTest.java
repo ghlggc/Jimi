@@ -1,7 +1,7 @@
 package io.leavesfly.jimi.llm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.leavesfly.jimi.config.LLMProviderConfig;
+import io.leavesfly.jimi.config.info.LLMProviderConfig;
 import io.leavesfly.jimi.llm.message.Message;
 import io.leavesfly.jimi.llm.provider.CursorChatProvider;
 import io.leavesfly.jimi.llm.provider.CursorProcessExecutor;

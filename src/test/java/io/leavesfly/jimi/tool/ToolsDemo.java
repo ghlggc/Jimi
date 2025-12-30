@@ -1,9 +1,9 @@
 package io.leavesfly.jimi.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.leavesfly.jimi.tool.todo.SetTodoList;
-import io.leavesfly.jimi.tool.web.FetchURL;
-import io.leavesfly.jimi.tool.web.WebSearch;
+import io.leavesfly.jimi.tool.core.todo.SetTodoList;
+import io.leavesfly.jimi.tool.core.web.FetchURL;
+import io.leavesfly.jimi.tool.core.web.WebSearch;
 
 import java.util.HashMap;
 import java.util.List;

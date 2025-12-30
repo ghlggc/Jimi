@@ -1,6 +1,8 @@
 package io.leavesfly.jimi.config;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.leavesfly.jimi.config.info.*;
+import io.leavesfly.jimi.tool.skill.SkillConfig;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -13,6 +15,7 @@ import java.util.Map;
 
 /**
  * Jimi 全局配置
+ * 统一管理所有配置信息
  */
 @Data
 @Builder
@@ -86,6 +89,30 @@ public class JimiConfig {
     @Builder.Default
     private ShellUIConfig shellUI = new ShellUIConfig();
 
+    /**
+     * Skills 功能配置
+     */
+    @JsonProperty("skill")
+    @Valid
+    @Builder.Default
+    private SkillConfig skill = new SkillConfig();
+
+    /**
+     * 记忆模块配置
+     */
+    @JsonProperty("memory")
+    @Valid
+    @Builder.Default
+    private MemoryConfig memory = new MemoryConfig();
+
+    /**
+     * MetaTool 配置
+     */
+    @JsonProperty("meta_tool")
+    @Valid
+    @Builder.Default
+    private MetaToolConfig metaTool = new MetaToolConfig();
+
     
     /**
      * 验证配置的一致性
@@ -108,6 +135,11 @@ public class JimiConfig {
                                  modelConfig.getProvider(), modelName)
                 );
             }
+        }
+        
+        // 验证Skills配置
+        if (skill != null && skill.isEnabled()) {
+            skill.validate();
         }
     }
 }

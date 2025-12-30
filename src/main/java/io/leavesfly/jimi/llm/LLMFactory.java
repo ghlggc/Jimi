@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.leavesfly.jimi.config.JimiConfig;
-import io.leavesfly.jimi.config.LLMModelConfig;
-import io.leavesfly.jimi.config.LLMProviderConfig;
+import io.leavesfly.jimi.config.info.LLMModelConfig;
+import io.leavesfly.jimi.config.info.LLMProviderConfig;
 import io.leavesfly.jimi.exception.ConfigException;
 import io.leavesfly.jimi.llm.provider.CursorChatProvider;
 import io.leavesfly.jimi.llm.provider.KimiChatProvider;
@@ -14,8 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 /**

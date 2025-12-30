@@ -2,7 +2,7 @@ package io.leavesfly.jimi.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.leavesfly.jimi.tool.file.StrReplaceFile;
+import io.leavesfly.jimi.tool.core.file.StrReplaceFile;
 
 /**
  * StrReplaceFile 工具 Schema 测试

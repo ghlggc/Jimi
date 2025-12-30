@@ -2,12 +2,10 @@ package io.leavesfly.jimi.command.custom;
 
 import io.leavesfly.jimi.command.CommandContext;
 import io.leavesfly.jimi.command.CommandHandler;
-import io.leavesfly.jimi.engine.approval.Approval;
-import io.leavesfly.jimi.engine.approval.ApprovalResponse;
-import io.leavesfly.jimi.tool.bash.Bash;
+import io.leavesfly.jimi.core.interaction.approval.Approval;
+import io.leavesfly.jimi.core.interaction.approval.ApprovalResponse;
 import io.leavesfly.jimi.ui.shell.output.OutputFormatter;
 import lombok.extern.slf4j.Slf4j;
-import reactor.core.publisher.Mono;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;

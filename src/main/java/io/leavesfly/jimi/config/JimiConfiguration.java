@@ -5,16 +5,33 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.leavesfly.jimi.graph.GraphManager;
+import io.leavesfly.jimi.config.info.GraphConfig;
+import io.leavesfly.jimi.config.info.LLMProviderConfig;
+import io.leavesfly.jimi.config.info.ShellUIConfig;
+import io.leavesfly.jimi.config.info.VectorIndexConfig;
+import io.leavesfly.jimi.core.compaction.Compaction;
+import io.leavesfly.jimi.core.compaction.SimpleCompaction;
+import io.leavesfly.jimi.exception.ConfigException;
+import io.leavesfly.jimi.knowledge.graph.GraphManager;
+import io.leavesfly.jimi.knowledge.retrieval.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+
+import java.io.IOException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Jimi 应用配置类
  * 统一管理核心 Bean 的创建和配置
  */
+@Slf4j
 @Configuration
 public class JimiConfiguration {
 
@@ -23,7 +40,7 @@ public class JimiConfiguration {
      * 全局单例,用于所有 JSON 处理
      */
     @Bean
-    @org.springframework.context.annotation.Primary
+    @Primary
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
 
@@ -61,19 +78,18 @@ public class JimiConfiguration {
      * 在应用启动时加载配置
      */
     @Bean
-    @Autowired
-    public JimiConfig jimiConfig(ConfigLoader configLoader) {
-        return configLoader.loadConfig(null);
+    public JimiConfig jimiConfig(ObjectMapper objectMapper) {
+        return ConfigLoaderHelper.loadConfig(objectMapper, null);
     }
 
     /**
      * GraphConfig Bean - 代码图配置
-     * 从 application.yml 中加载 jimi.graph 配置
+     * 从 JimiConfig 中获取
      */
     @Bean
-    @ConfigurationProperties(prefix = "jimi.graph")
-    public GraphConfig graphConfig() {
-        return new GraphConfig();
+    @Autowired
+    public GraphConfig graphConfig(JimiConfig jimiConfig) {
+        return jimiConfig.getGraph();
     }
 
     /**
@@ -88,11 +104,301 @@ public class JimiConfiguration {
 
     /**
      * ShellUIConfig Bean - Shell UI 配置
-     * 从 application.yml 中加载 jimi.shell-ui 配置
+     * 从 JimiConfig 中获取
      */
     @Bean
-    @ConfigurationProperties(prefix = "jimi.shell-ui")
-    public ShellUIConfig shellUIConfig() {
-        return new ShellUIConfig();
+    @Autowired
+    public ShellUIConfig shellUIConfig(JimiConfig jimiConfig) {
+        return jimiConfig.getShellUI();
+    }
+
+    /**
+     * MetaToolConfig Bean - MetaTool 配置
+     * 从 JimiConfig 中获取
+     */
+    @Bean
+    @Autowired
+    public io.leavesfly.jimi.config.info.MetaToolConfig metaToolConfig(JimiConfig jimiConfig) {
+        return jimiConfig.getMetaTool();
+    }
+
+    /**
+     * MemoryConfig Bean - 记忆模块配置
+     * 从 JimiConfig 中获取
+     */
+    @Bean
+    @Autowired
+    public io.leavesfly.jimi.config.info.MemoryConfig memoryConfig(JimiConfig jimiConfig) {
+        return jimiConfig.getMemory();
+    }
+
+    // ==================== 向量索引相关组件 ====================
+
+    /**
+     * 创建嵌入提供者
+     * 根据 JimiConfig 中的 vector_index.enabled 配置条件性创建
+     */
+    @Bean
+    @Autowired
+    public EmbeddingProvider embeddingProvider(JimiConfig jimiConfig, ObjectMapper objectMapper) {
+        VectorIndexConfig config = jimiConfig.getVectorIndex();
+        
+        // 如果未启用向量索引，返回 Mock 实现
+        if (!config.isEnabled()) {
+            log.debug("Vector index is disabled, returning mock embedding provider");
+            return new MockEmbeddingProvider(1024, "disabled");
+        }
+        
+        String providerType = config.getEmbeddingProvider();
+        String embeddingModel = config.getEmbeddingModel();
+        int dimension = config.getEmbeddingDimension();
+        
+        log.info("Creating EmbeddingProvider: type={}, model={}, dimension={}", 
+                providerType, embeddingModel, dimension);
+        
+        switch (providerType.toLowerCase()) {
+            case "qwen":
+                // 获取qwen提供商配置
+                LLMProviderConfig qwenConfig = jimiConfig.getProviders().get("qwen");
+                if (qwenConfig == null) {
+                    log.error("Qwen provider not configured, falling back to mock");
+                    return new MockEmbeddingProvider(dimension, "qwen-fallback");
+                }
+                return new QwenEmbeddingProvider(embeddingModel, dimension, qwenConfig, objectMapper);
+                
+            case "mock":
+            case "local":
+                return new MockEmbeddingProvider(dimension, providerType);
+                
+            default:
+                log.warn("Unknown embedding provider: {}, falling back to mock", providerType);
+                return new MockEmbeddingProvider(dimension, "mock");
+        }
+    }
+
+    /**
+     * 创建向量存储
+     * 根据 JimiConfig 中的 vector_index.enabled 配置条件性创建
+     */
+    @Bean
+    @Autowired
+    public VectorStore vectorStore(JimiConfig jimiConfig, EmbeddingProvider embeddingProvider, ObjectMapper objectMapper) {
+        VectorIndexConfig config = jimiConfig.getVectorIndex();
+        
+        // 如果未启用向量索引，返回空实现
+        if (!config.isEnabled()) {
+            log.debug("Vector index is disabled, returning empty vector store");
+            return new InMemoryVectorStore(objectMapper);
+        }
+        
+        String storageType = config.getStorageType();
+        String indexPath = config.getIndexPath();
+        
+        log.info("Creating VectorStore: type={}, path={}", storageType, indexPath);
+        
+        VectorStore store;
+        
+        // 目前只支持内存存储，后续可扩展
+        switch (storageType.toLowerCase()) {
+            case "memory":
+            case "file":
+                InMemoryVectorStore inMemoryStore = new InMemoryVectorStore(objectMapper);
+                // 设置配置的索引路径（相对路径）
+                inMemoryStore.setConfiguredIndexPath(indexPath);
+                store = inMemoryStore;
+                break;
+            default:
+                log.warn("Unknown storage type: {}, falling back to in-memory", storageType);
+                InMemoryVectorStore fallbackStore = new InMemoryVectorStore(objectMapper);
+                fallbackStore.setConfiguredIndexPath(indexPath);
+                store = fallbackStore;
+        }
+        
+        // 注意: 自动加载需要在工作目录设置后进行
+        // 将在 GraphToolProvider 或 IndexCommandHandler 中设置 workDir 后触发
+        log.debug("VectorStore created, auto-load will be triggered after workDir is set");
+        
+        return store;
+    }
+
+    /**
+     * 创建分块器
+     * 根据 JimiConfig 中的 vector_index.enabled 配置条件性创建
+     */
+    @Bean
+    @Autowired
+    public Chunker chunker(JimiConfig jimiConfig) {
+        VectorIndexConfig config = jimiConfig.getVectorIndex();
+        
+        if (!config.isEnabled()) {
+            log.debug("Vector index is disabled, chunker will not be used");
+        } else {
+            log.info("Creating Chunker: SimpleChunker");
+        }
+        
+        return new SimpleChunker();
+    }
+
+    /**
+     * 创建检索管线
+     * 根据 JimiConfig 中的 vector_index.enabled 配置条件性创建
+     */
+    @Bean
+    @Autowired
+    public RetrievalPipeline retrievalPipeline(JimiConfig jimiConfig, VectorStore vectorStore, 
+                                               EmbeddingProvider embeddingProvider) {
+        VectorIndexConfig config = jimiConfig.getVectorIndex();
+        
+        if (!config.isEnabled()) {
+            log.debug("Vector index is disabled, returning basic retrieval pipeline");
+            return new SimpleRetrievalPipeline(vectorStore, embeddingProvider, 5);
+        }
+        
+        int topK = config.getTopK();
+        
+        log.info("Creating RetrievalPipeline: topK={}", topK);
+        
+        return new SimpleRetrievalPipeline(vectorStore, embeddingProvider, topK);
+    }
+
+    /**
+     * 创建检索增强的压缩器
+     * 根据 JimiConfig 中的 vector_index.enabled 配置条件性创建
+     * 如果启用向量索引，覆盖默认的 SimpleCompaction
+     */
+    @Bean
+    @Primary
+    @Autowired
+    public Compaction compaction(JimiConfig jimiConfig, VectorStore vectorStore,
+                                EmbeddingProvider embeddingProvider) {
+        VectorIndexConfig config = jimiConfig.getVectorIndex();
+        
+        // 基础压缩器
+        Compaction baseCompaction = new SimpleCompaction();
+        
+        // 如果未启用向量索引，只返回基础压缩器
+        if (!config.isEnabled()) {
+            log.debug("Vector index is disabled, using simple compaction");
+            return baseCompaction;
+        }
+        
+        // 检索增强压缩（可通过配置关闭）
+        boolean enableRetrievalInCompaction = true; // TODO: 添加到配置
+        int compactionTopK = Math.min(config.getTopK(), 3); // 压缩时用较少的片段
+        
+        log.info("Creating RetrievalAwareCompaction: enabled={}, topK={}", 
+                enableRetrievalInCompaction, compactionTopK);
+        
+        return new RetrievalAwareCompaction(
+                baseCompaction,
+                vectorStore,
+                embeddingProvider,
+                compactionTopK,
+                enableRetrievalInCompaction
+        );
+    }
+
+    // ==================== 配置加载内部工具类 ====================
+
+    /**
+     * 配置加载工具类
+     * 负责从配置文件加载、保存和管理 Jimi 配置
+     * 使用 YAML 格式
+     */
+    private static class ConfigLoaderHelper {
+
+        private static final String RESOURCE_CONFIG_PATH = ".jimi/config.yml";
+
+        /**
+         * 获取配置文件路径
+         */
+        public static Path getConfigFilePath() {
+            String userHome = System.getProperty("user.home");
+            return Paths.get(userHome, RESOURCE_CONFIG_PATH);
+        }
+
+        /**
+         * 加载配置
+         * 配置优先级：自定义配置文件 > 默认配置文件 > 内置默认配置
+         * 使用 YAML 格式
+         */
+        public static JimiConfig loadConfig(ObjectMapper objectMapper, Path customConfigFile) {
+            Path configFile = customConfigFile != null ? customConfigFile : getConfigFilePath();
+
+            JimiConfig config;
+            if (Files.exists(configFile)) {
+                log.debug("Loading config from file: {}", configFile);
+                try {
+                    // 使用 YAML ObjectMapper
+                    ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+                    yamlMapper.registerModule(new JavaTimeModule());
+                    yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                    config = yamlMapper.readValue(Files.newInputStream(configFile), JimiConfig.class);
+                } catch (IOException e) {
+                    throw new ConfigException("Failed to load config from file: " + configFile, e);
+                }
+            } else {
+                log.debug("No config file found, creating default config");
+                config = getDefaultConfig();
+            }
+
+            // 验证配置
+            try {
+                config.validate();
+            } catch (IllegalStateException e) {
+                throw new ConfigException("Invalid configuration: " + e.getMessage(), e);
+            }
+
+            return config;
+        }
+
+        /**
+         * 保存配置
+         */
+        public static void saveConfig(JimiConfig config, Path configFile) {
+            try {
+                // 确保目录存在
+                Files.createDirectories(configFile.getParent());
+
+                // 使用 YAML ObjectMapper
+                ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+                yamlMapper.registerModule(new JavaTimeModule());
+                yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                yamlMapper.writerWithDefaultPrettyPrinter()
+                    .writeValue(Files.newOutputStream(configFile), config);
+
+                log.info("Config saved to: {}", configFile);
+            } catch (IOException e) {
+                throw new ConfigException("Failed to save config to file: " + configFile, e);
+            }
+        }
+
+        /**
+         * 获取默认内置配置
+         * 从 resources/.jimi/config.yml 加载
+         */
+        public static JimiConfig getDefaultConfig() {
+            try {
+                URL resource = ConfigLoaderHelper.class.getClassLoader().getResource(RESOURCE_CONFIG_PATH);
+                if (resource != null) {
+                    log.debug("Loading default config from classpath: {}", RESOURCE_CONFIG_PATH);
+                    ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+                    yamlMapper.registerModule(new JavaTimeModule());
+                    yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                    return yamlMapper.readValue(resource, JimiConfig.class);
+                }
+            } catch (IOException e) {
+                log.warn("Failed to load default config from classpath: {}", e.getMessage());
+            }
+
+            throw new ConfigException("Failed to load default config from classpath: " + RESOURCE_CONFIG_PATH);
+        }
+    }
+
+    /**
+     * 公共方法：加载配置（用于测试）
+     */
+    public static JimiConfig loadConfig(ObjectMapper objectMapper, Path customConfigFile) {
+        return ConfigLoaderHelper.loadConfig(objectMapper, customConfigFile);
     }
 }

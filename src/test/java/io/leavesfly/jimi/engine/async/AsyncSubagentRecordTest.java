@@ -1,5 +1,9 @@
 package io.leavesfly.jimi.engine.async;
 
+import io.leavesfly.jimi.core.engine.async.AsyncSubagent;
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentMode;
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentRecord;
+import io.leavesfly.jimi.core.engine.async.AsyncSubagentStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

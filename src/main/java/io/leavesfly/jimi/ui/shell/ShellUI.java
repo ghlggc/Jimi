@@ -1,18 +1,18 @@
 package io.leavesfly.jimi.ui.shell;
 
-import io.leavesfly.jimi.engine.JimiEngine;
-import io.leavesfly.jimi.engine.approval.ApprovalRequest;
-import io.leavesfly.jimi.engine.approval.ApprovalResponse;
-import io.leavesfly.jimi.engine.interaction.HumanInputRequest;
-import io.leavesfly.jimi.engine.interaction.HumanInputResponse;
+import io.leavesfly.jimi.core.JimiEngine;
+import io.leavesfly.jimi.core.interaction.approval.ApprovalRequest;
+import io.leavesfly.jimi.core.interaction.approval.ApprovalResponse;
+import io.leavesfly.jimi.core.interaction.HumanInputRequest;
+import io.leavesfly.jimi.core.interaction.HumanInputResponse;
 import io.leavesfly.jimi.llm.ChatCompletionResult;
 import io.leavesfly.jimi.llm.message.ContentPart;
 import io.leavesfly.jimi.llm.message.TextPart;
 import io.leavesfly.jimi.llm.message.ToolCall;
 import io.leavesfly.jimi.tool.ToolResult;
 import io.leavesfly.jimi.command.CommandRegistry;
-import io.leavesfly.jimi.config.ShellUIConfig;
-import io.leavesfly.jimi.config.ThemeConfig;
+import io.leavesfly.jimi.config.info.ShellUIConfig;
+import io.leavesfly.jimi.config.info.ThemeConfig;
 import io.leavesfly.jimi.ui.notification.NotificationService;
 import io.leavesfly.jimi.ui.shell.input.AgentCommandProcessor;
 import io.leavesfly.jimi.ui.shell.input.InputProcessor;

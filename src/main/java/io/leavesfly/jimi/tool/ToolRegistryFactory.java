@@ -1,21 +1,26 @@
 package io.leavesfly.jimi.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.leavesfly.jimi.agent.AgentSpec;
-import io.leavesfly.jimi.engine.approval.Approval;
-import io.leavesfly.jimi.engine.runtime.BuiltinSystemPromptArgs;
-import io.leavesfly.jimi.engine.runtime.Runtime;
-import io.leavesfly.jimi.session.Session;
-import io.leavesfly.jimi.tool.bash.Bash;
-import io.leavesfly.jimi.tool.file.*;
-import io.leavesfly.jimi.tool.task.Task;
-import io.leavesfly.jimi.tool.todo.SetTodoList;
-import io.leavesfly.jimi.tool.web.FetchURL;
-import io.leavesfly.jimi.tool.web.WebSearch;
+import io.leavesfly.jimi.core.agent.AgentSpec;
+import io.leavesfly.jimi.core.interaction.approval.Approval;
+import io.leavesfly.jimi.core.engine.runtime.BuiltinSystemPromptArgs;
+import io.leavesfly.jimi.core.engine.runtime.Runtime;
+import io.leavesfly.jimi.core.session.Session;
+import io.leavesfly.jimi.tool.core.bash.Bash;
+import io.leavesfly.jimi.tool.core.file.*;
+import io.leavesfly.jimi.tool.core.todo.SetTodoList;
+import io.leavesfly.jimi.tool.core.web.FetchURL;
+import io.leavesfly.jimi.tool.core.web.WebSearch;
+import io.leavesfly.jimi.tool.provider.MCPToolProvider;
+import io.leavesfly.jimi.tool.provider.MetaToolProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
+
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * ToolRegistry 工厂类
@@ -28,11 +33,79 @@ public class ToolRegistryFactory {
     
     private final ApplicationContext applicationContext;
     private final ObjectMapper objectMapper;
+    private final List<ToolProvider> toolProviders;
     
     @Autowired
-    public ToolRegistryFactory(ApplicationContext applicationContext, ObjectMapper objectMapper) {
+    public ToolRegistryFactory(
+            ApplicationContext applicationContext, 
+            ObjectMapper objectMapper,
+            List<ToolProvider> toolProviders) {
         this.applicationContext = applicationContext;
         this.objectMapper = objectMapper;
+        this.toolProviders = toolProviders;
+    }
+    
+    /**
+     * 创建完整的工具注册表（包含所有 ToolProvider）
+     * <p>
+     * 这是推荐的工厂方法，将所有工具创建逻辑内聚在此
+     *
+     * @param builtinArgs    内置系统提示词参数
+     * @param approval       审批对象
+     * @param agentSpec      Agent 规范
+     * @param runtime        运行时对象
+     * @param mcpConfigFiles MCP 配置文件列表（可选）
+     * @return 配置好的 ToolRegistry 实例
+     */
+    public ToolRegistry create(
+            BuiltinSystemPromptArgs builtinArgs,
+            Approval approval,
+            AgentSpec agentSpec,
+            Runtime runtime,
+            List<Path> mcpConfigFiles) {
+        
+        // 1. 创建基础工具注册表
+        ToolRegistry registry = createStandardRegistry(builtinArgs, approval, runtime.getSession());
+        
+        // 2. 应用 ToolProvider SPI 机制加载额外工具
+        applyToolProviders(registry, agentSpec, runtime, mcpConfigFiles);
+        
+        log.info("Created complete tool registry with {} tools", registry.getToolNames().size());
+        return registry;
+    }
+    
+    /**
+     * 应用所有 ToolProvider
+     */
+    private void applyToolProviders(
+            ToolRegistry registry,
+            AgentSpec agentSpec,
+            Runtime runtime,
+            List<Path> mcpConfigFiles) {
+        
+        log.debug("Applying {} tool providers", toolProviders.size());
+        
+        // 对于 MCP 提供者，需要设置配置文件
+        toolProviders.stream()
+            .filter(p -> p instanceof MCPToolProvider)
+            .forEach(p -> ((MCPToolProvider) p).setMcpConfigFiles(mcpConfigFiles));
+        
+        // 对于 MetaToolProvider，需要提前注入 ToolRegistry
+        toolProviders.stream()
+            .filter(p -> p instanceof MetaToolProvider)
+            .forEach(p -> ((MetaToolProvider) p).setToolRegistry(registry));
+        
+        // 按顺序应用所有工具提供者
+        toolProviders.stream()
+            .sorted(Comparator.comparingInt(ToolProvider::getOrder))
+            .filter(provider -> provider.supports(agentSpec, runtime))
+            .forEach(provider -> {
+                log.info("Applying tool provider: {} (order={})", 
+                        provider.getName(), provider.getOrder());
+                List<Tool<?>> tools = provider.createTools(agentSpec, runtime);
+                tools.forEach(registry::register);
+                log.debug("  Registered {} tools from {}", tools.size(), provider.getName());
+            });
     }
     
     /**
@@ -166,17 +239,17 @@ public class ToolRegistryFactory {
          return tool;
      }
     
-    /**
-     * 创建 Task 工具实例
-     * Task 工具需要 AgentSpec 和 Runtime 参数
-     * 
-     * @param agentSpec Agent 规范
-     * @param runtime   运行时对象
-     * @return 配置好的 Task 工具实例
-     */
-    public Task createTask(AgentSpec agentSpec, Runtime runtime) {
-        Task tool = applicationContext.getBean(Task.class);
-        tool.setRuntimeParams(agentSpec, runtime);
-        return tool;
-    }
+//    /**
+//     * 创建 Task 工具实例
+//     * Task 工具需要 AgentSpec 和 Runtime 参数
+//     *
+//     * @param agentSpec Agent 规范
+//     * @param runtime   运行时对象
+//     * @return 配置好的 Task 工具实例
+//     */
+//    public Task createTask(AgentSpec agentSpec, Runtime runtime) {
+//        Task tool = applicationContext.getBean(Task.class);
+//        tool.setRuntimeParams(agentSpec, runtime);
+//        return tool;
+//    }
 }

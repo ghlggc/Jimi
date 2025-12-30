@@ -1,6 +1,6 @@
 package io.leavesfly.jimi.llm;
 
-import io.leavesfly.jimi.config.LLMProviderConfig;
+import io.leavesfly.jimi.config.info.LLMProviderConfig;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

@@ -1,6 +1,6 @@
 package io.leavesfly.jimi.ui.shell;
 
-import io.leavesfly.jimi.engine.JimiEngine;
+import io.leavesfly.jimi.core.JimiEngine;
 import io.leavesfly.jimi.ui.shell.output.OutputFormatter;
 import lombok.Builder;
 import lombok.Getter;

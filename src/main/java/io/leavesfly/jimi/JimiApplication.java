@@ -2,13 +2,11 @@ package io.leavesfly.jimi;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * Jimi 应用主启动类
  */
 @SpringBootApplication
-@ConfigurationPropertiesScan("io.leavesfly.jimi.config")
 public class JimiApplication {
 
     public static void main(String[] args) {

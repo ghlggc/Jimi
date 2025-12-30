@@ -33,7 +33,7 @@ build/
 ### VS Code ###
 .vscode/
 .qoder/
-**/.jimi/config.json
+**/.jimi/config.yml
 
 ### Mac OS ###
 .DS_Store

@@ -1,15 +1,13 @@
 package io.leavesfly.jimi.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.leavesfly.jimi.config.ConfigLoader;
-import io.leavesfly.jimi.tool.web.WebSearch;
+import io.leavesfly.jimi.config.JimiConfiguration;
+import io.leavesfly.jimi.config.JimiConfig;
+import io.leavesfly.jimi.tool.core.web.WebSearch;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * WebSearch 工具测试
@@ -18,16 +16,16 @@ import java.util.Map;
 public class WebSearchTest {
     
     private WebSearch webSearch;
-    private ConfigLoader configLoader;
+    private JimiConfig jimiConfig;
     private ObjectMapper objectMapper;
     
     @BeforeEach
     public void setUp() {
         objectMapper = new ObjectMapper();
-        configLoader = new ConfigLoader(objectMapper);
+        jimiConfig = JimiConfiguration.loadConfig(objectMapper, null);
         
-        // 使用 ConfigLoader 创建 WebSearch 实例
-        webSearch = new WebSearch(configLoader, objectMapper);
+        // 使用 JimiConfig 创建 WebSearch 实例
+        webSearch = new WebSearch(jimiConfig, objectMapper);
     }
     
     @Test
@@ -122,8 +120,8 @@ public class WebSearchTest {
     public void testDefaultConstructor() {
         log.info("=== 测试默认构造函数（使用配置文件） ===");
         
-        // 使用 ConfigLoader 创建
-        WebSearch defaultWebSearch = new WebSearch(configLoader, objectMapper);
+        // 使用 JimiConfig 创建
+        WebSearch defaultWebSearch = new WebSearch(jimiConfig, objectMapper);
         
         WebSearch.Params params = WebSearch.Params.builder()
             .query("AI Agent")

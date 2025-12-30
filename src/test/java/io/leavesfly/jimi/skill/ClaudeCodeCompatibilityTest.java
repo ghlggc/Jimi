@@ -1,5 +1,7 @@
 package io.leavesfly.jimi.skill;
 
+import io.leavesfly.jimi.tool.skill.SkillLoader;
+import io.leavesfly.jimi.tool.skill.SkillSpec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import static org.junit.jupiter.api.Assertions.*;

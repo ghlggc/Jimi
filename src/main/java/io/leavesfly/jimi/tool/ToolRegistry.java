@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.leavesfly.jimi.engine.toolcall.ArgumentsNormalizer;
+import io.leavesfly.jimi.core.engine.toolcall.ArgumentsNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 

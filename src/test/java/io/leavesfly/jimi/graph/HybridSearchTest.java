@@ -1,17 +1,20 @@
 package io.leavesfly.jimi.graph;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.leavesfly.jimi.graph.model.*;
-import io.leavesfly.jimi.graph.navigator.GraphNavigator;
-import io.leavesfly.jimi.graph.navigator.ImpactAnalyzer;
-import io.leavesfly.jimi.graph.search.GraphSearchEngine;
-import io.leavesfly.jimi.graph.search.HybridSearchEngine;
-import io.leavesfly.jimi.graph.store.CodeGraphStore;
-import io.leavesfly.jimi.graph.store.InMemoryCodeGraphStore;
-import io.leavesfly.jimi.retrieval.EmbeddingProvider;
-import io.leavesfly.jimi.retrieval.MockEmbeddingProvider;
-import io.leavesfly.jimi.retrieval.VectorStore;
-import io.leavesfly.jimi.retrieval.InMemoryVectorStore;
+import io.leavesfly.jimi.knowledge.graph.model.CodeEntity;
+import io.leavesfly.jimi.knowledge.graph.model.CodeRelation;
+import io.leavesfly.jimi.knowledge.graph.model.EntityType;
+import io.leavesfly.jimi.knowledge.graph.model.RelationType;
+import io.leavesfly.jimi.knowledge.graph.navigator.GraphNavigator;
+import io.leavesfly.jimi.knowledge.graph.navigator.ImpactAnalyzer;
+import io.leavesfly.jimi.knowledge.graph.search.GraphSearchEngine;
+import io.leavesfly.jimi.knowledge.graph.search.HybridSearchEngine;
+import io.leavesfly.jimi.knowledge.graph.store.CodeGraphStore;
+import io.leavesfly.jimi.knowledge.graph.store.InMemoryCodeGraphStore;
+import io.leavesfly.jimi.knowledge.retrieval.EmbeddingProvider;
+import io.leavesfly.jimi.knowledge.retrieval.MockEmbeddingProvider;
+import io.leavesfly.jimi.knowledge.retrieval.VectorStore;
+import io.leavesfly.jimi.knowledge.retrieval.InMemoryVectorStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

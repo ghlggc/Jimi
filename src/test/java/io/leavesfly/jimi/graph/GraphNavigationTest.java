@@ -1,10 +1,15 @@
 package io.leavesfly.jimi.graph;
 
-import io.leavesfly.jimi.graph.model.*;
-import io.leavesfly.jimi.graph.navigator.*;
-import io.leavesfly.jimi.graph.store.CodeGraphStore;
-import io.leavesfly.jimi.graph.store.InMemoryCodeGraphStore;
-import io.leavesfly.jimi.graph.visualization.GraphVisualizer;
+import io.leavesfly.jimi.knowledge.graph.model.CodeEntity;
+import io.leavesfly.jimi.knowledge.graph.model.CodeRelation;
+import io.leavesfly.jimi.knowledge.graph.model.EntityType;
+import io.leavesfly.jimi.knowledge.graph.model.RelationType;
+import io.leavesfly.jimi.knowledge.graph.navigator.GraphNavigator;
+import io.leavesfly.jimi.knowledge.graph.navigator.ImpactAnalyzer;
+import io.leavesfly.jimi.knowledge.graph.navigator.PathFinder;
+import io.leavesfly.jimi.knowledge.graph.store.CodeGraphStore;
+import io.leavesfly.jimi.knowledge.graph.store.InMemoryCodeGraphStore;
+import io.leavesfly.jimi.knowledge.graph.visualization.GraphVisualizer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

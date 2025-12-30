@@ -2,7 +2,7 @@ package io.leavesfly.jimi.command.handlers;
 
 import io.leavesfly.jimi.command.CommandContext;
 import io.leavesfly.jimi.command.CommandHandler;
-import io.leavesfly.jimi.graph.GraphManager;
+import io.leavesfly.jimi.knowledge.graph.GraphManager;
 import io.leavesfly.jimi.ui.shell.output.OutputFormatter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
