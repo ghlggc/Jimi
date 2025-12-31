@@ -70,7 +70,9 @@ public class ToolDispatcher {
                 String toolCallId = (toolCall != null && toolCall.getId() != null) ? toolCall.getId() : "unknown_" + toolIndex;
                 return Mono.just(Message.tool(toolCallId, "Tool execution failed: " + e.getMessage()));
             });
-        }).collectList().doOnNext(results -> log.info("Collected {} tool results after sequential execution", results.size())).flatMap(results -> context.appendMessage(results).doOnSuccess(v -> log.info("Successfully appended {} tool results to context", results.size())).doOnError(e -> log.error("Failed to append tool results to context", e)));
+        }).collectList().doOnNext(results -> log.info("Collected {} tool results after sequential execution", results.size()))
+                .flatMap(results -> context.appendMessage(results).doOnSuccess(v -> log.info("Successfully appended {} tool results to context", results.size()))
+                        .doOnError(e -> log.error("Failed to append tool results to context", e)));
     }
 
     /**
@@ -83,8 +85,6 @@ public class ToolDispatcher {
     public Mono<Message> executeToolCall(ToolCall toolCall, Context context) {
         return Mono.defer(() -> {
             try {
-                // 发送工具调用开始消息到 Wire
-                wire.send(new ToolCallMessage(toolCall));
 
                 ToolCallValidator.ValidationResult validation = toolCallValidator.validate(toolCall);
                 if (!validation.isValid()) {
@@ -93,6 +93,9 @@ public class ToolDispatcher {
                     wire.send(new ToolResultMessage(validation.getToolCallId(), errorResult));
                     return Mono.just(Message.tool(validation.getToolCallId(), validation.getErrorMessage()));
                 }
+
+                // 发送工具调用开始消息到 Wire
+                wire.send(new ToolCallMessage(toolCall));
 
                 String toolName = toolCall.getFunction().getName();
                 String toolCallId = validation.getToolCallId();
@@ -118,11 +121,11 @@ public class ToolDispatcher {
         return toolRegistry.execute(toolName, arguments).doOnNext(result -> {
             // 发送工具执行结果消息到 Wire
             wire.send(new ToolResultMessage(toolCallId, result));
+
         }).map(result -> convertToolResultToMessage(result, toolCallId, toolSignature, context)).onErrorResume(e -> {
             log.error("Tool execution failed: {}", toolName, e);
             ToolResult errorResult = ToolResult.error("Tool execution error: " + e.getMessage(), "Execution failed");
             wire.send(new ToolResultMessage(toolCallId, errorResult));
-
 
             return Mono.just(Message.tool(toolCallId, "Tool execution error: " + e.getMessage()));
         });

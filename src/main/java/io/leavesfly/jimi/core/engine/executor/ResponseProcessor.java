@@ -8,6 +8,7 @@ import io.leavesfly.jimi.llm.message.FunctionCall;
 import io.leavesfly.jimi.llm.message.Message;
 import io.leavesfly.jimi.llm.message.TextPart;
 import io.leavesfly.jimi.llm.message.ToolCall;
+import io.leavesfly.jimi.tool.ToolRegistry;
 import io.leavesfly.jimi.wire.Wire;
 import io.leavesfly.jimi.wire.message.ContentPartMessage;
 import io.leavesfly.jimi.wire.message.TokenUsageMessage;
@@ -29,6 +30,7 @@ import java.util.List;
  * - 累积内容和工具调用
  * - 构建完整的 Assistant 消息
  * - 处理 Token 统计
+ * - 处理 Assistant 消息的后续逻辑（工具调用分发）
  */
 @Slf4j
 @Component
@@ -58,6 +60,7 @@ public class ResponseProcessor {
     public StreamAccumulator processStreamChunk(StreamAccumulator acc, ChatCompletionChunk chunk) {
         switch (chunk.getType()) {
             case CONTENT:
+            case REASONING:
                 handleContentChunk(acc, chunk);
                 break;
             case TOOL_CALL:
@@ -185,7 +188,7 @@ public class ResponseProcessor {
 
         // 如果没有当前工具调用上下文，创建临时上下文
         if (acc.currentToolCallId == null) {
-            initializeTempToolCallContext(acc, argumentsDelta);
+            initializeTempToolCallContext(acc);
         }
 
         acc.currentArguments.append(argumentsDelta);
@@ -194,11 +197,9 @@ public class ResponseProcessor {
     /**
      * 初始化临时工具调用上下文
      */
-    private void initializeTempToolCallContext(StreamAccumulator acc, String firstArgumentsDelta) {
+    private void initializeTempToolCallContext(StreamAccumulator acc) {
         String tempId = "temp_" + System.nanoTime() + "_" + Thread.currentThread().getId();
-
         log.warn("收到 argumentsDelta 但 currentToolCallId 为 null，创建临时上下文: id={}", tempId);
-
         acc.currentToolCallId = tempId;
         acc.currentFunctionName = null;
         acc.currentArguments = new StringBuilder();
@@ -215,11 +216,14 @@ public class ResponseProcessor {
     /**
      * 处理流式完成后的逻辑
      *
-     * @param acc     累加器
-     * @param context 上下文
+     * @param acc            累加器
+     * @param context        上下文
+     * @param executionState 执行状态
      * @return 是否完成（true 表示没有更多工具调用）
      */
-    public Mono<Message> handleStreamCompletion(StreamAccumulator acc, Context context) {
+    public Mono<Boolean> handleStreamCompletion(StreamAccumulator acc, Context context
+            , ExecutionState executionState, ToolRegistry toolRegistry) {
+
         Message assistantMessage = buildMessageFromAccumulator(acc);
 
         // Token 计数更新
@@ -243,7 +247,7 @@ public class ResponseProcessor {
 
         return updateTokens
                 .then(context.appendMessage(assistantMessage))
-                .thenReturn(assistantMessage);
+                .then(processAssistantMessage(assistantMessage, context, executionState, toolRegistry));
     }
 
     /**
@@ -354,6 +358,50 @@ public class ResponseProcessor {
         int estimatedTokens = (int) Math.ceil(charCount / 4.0);
         log.debug("Estimated {} tokens from {} characters", estimatedTokens, charCount);
         return estimatedTokens;
+    }
+
+    /**
+     * 处理 assistant 消息
+     * <p>
+     * 职责：
+     * - 检查是否有工具调用
+     * - 处理连续无工具调用的情况（强制完成）
+     * - 分发工具调用执行
+     *
+     * @param assistantMessage assistant 消息
+     * @param context          上下文
+     * @param executionState   执行状态
+     * @return 是否完成（true 表示循环结束）
+     */
+    private Mono<Boolean> processAssistantMessage(Message assistantMessage, Context context
+            , ExecutionState executionState, ToolRegistry toolRegistry) {
+
+        if (assistantMessage.getToolCalls() == null || assistantMessage.getToolCalls().isEmpty()) {
+            if (executionState.shouldForceComplete(5)) {
+                log.warn("Agent has been thinking for {} consecutive steps without taking action, forcing completion",
+                        5);
+                return Mono.just(true);
+            }
+
+            log.info("No tool calls, finishing step (consecutive thinking steps: {})",
+                    executionState.getConsecutiveNoToolCallSteps());
+            return Mono.just(true);
+        }
+
+        executionState.resetNoToolCallCounter();
+
+        log.info("准备执行 {} 个工具调用", assistantMessage.getToolCalls().size());
+
+        ToolDispatcher toolDispatcher = new ToolDispatcher(toolRegistry);
+
+        return toolDispatcher.executeToolCalls(assistantMessage.getToolCalls(), context)
+                .then(Mono.defer(() -> {
+                    if (toolDispatcher.shouldTerminateLoop()) {
+                        log.warn("检测到工具调用连续重复错误，强制终止当前 Agent 循环");
+                        return Mono.just(true);
+                    }
+                    return Mono.just(false);
+                }));
     }
 
     /**

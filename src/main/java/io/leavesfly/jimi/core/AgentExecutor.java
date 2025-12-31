@@ -43,9 +43,8 @@ import java.util.Objects;
 @Slf4j
 public class AgentExecutor {
 
-    private static final int MAX_THINKING_STEPS = 5;
-
     // ==================== 核心依赖（必需） ====================
+    private final String agentName;
     private final Agent agent;
     private final Runtime runtime;
     private final Context context;
@@ -57,12 +56,11 @@ public class AgentExecutor {
     private final ExecutionState executionState;
     private final MemoryRecorder memoryRecorder;
     private final ResponseProcessor responseProcessor;
-    private final ToolDispatcher toolDispatcher;
     private final ContextManager contextManager;
 
     // ==================== 可选配置 ====================
     private final boolean isSubagent;
-    private final String agentName;
+
     private final ActivePromptBuilder promptBuilder;
     private final MemoryConfig memoryConfig;
 
@@ -91,7 +89,6 @@ public class AgentExecutor {
         this.memoryRecorder = SpringContextUtils.getBean(MemoryRecorder.class);
         this.responseProcessor = SpringContextUtils.getBean(ResponseProcessor.class);
         this.contextManager = SpringContextUtils.getBean(ContextManager.class);
-        this.toolDispatcher = new ToolDispatcher(toolRegistry);
 
         this.memoryConfig = SpringContextUtils.getBean(MemoryConfig.class);
 
@@ -331,41 +328,9 @@ public class AgentExecutor {
                     .generateStream(systemPrompt, context.getHistory(), toolSchemas)
                     .contextWrite(ctx -> ctx.put("workDir", runtime.getWorkDir()))
                     .reduce(new ResponseProcessor.StreamAccumulator(), responseProcessor::processStreamChunk)
-                    .flatMap(acc -> responseProcessor.handleStreamCompletion(acc, context))
-                    //处理 assistant 消息
-                    .flatMap(this::processAssistantMessage)
+                    .flatMap(acc -> responseProcessor.handleStreamCompletion(acc, context, executionState,toolRegistry))
                     .onErrorResume(responseProcessor::handleLLMError);
         });
-    }
-
-    /**
-     * 处理 assistant 消息
-     */
-    private Mono<Boolean> processAssistantMessage(Message assistantMessage) {
-        if (assistantMessage.getToolCalls() == null || assistantMessage.getToolCalls().isEmpty()) {
-            if (executionState.shouldForceComplete(MAX_THINKING_STEPS)) {
-                log.warn("Agent has been thinking for {} consecutive steps without taking action, forcing completion",
-                        MAX_THINKING_STEPS);
-                return Mono.just(true);
-            }
-
-            log.info("No tool calls, finishing step (consecutive thinking steps: {})",
-                    executionState.getConsecutiveNoToolCallSteps());
-            return Mono.just(true);
-        }
-
-        executionState.resetNoToolCallCounter();
-
-        log.info("准备执行 {} 个工具调用", assistantMessage.getToolCalls().size());
-
-        return toolDispatcher.executeToolCalls(assistantMessage.getToolCalls(), context)
-                .then(Mono.defer(() -> {
-                    if (toolDispatcher.shouldTerminateLoop()) {
-                        log.warn("检测到工具调用连续重复错误，强制终止当前 Agent 循环");
-                        return Mono.just(true);
-                    }
-                    return Mono.just(false);
-                }));
     }
 
     // ==================== ReCAP 相关方法 ====================

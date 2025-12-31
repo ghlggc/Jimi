@@ -9,23 +9,6 @@ import reactor.core.publisher.Mono;
 /**
  * 知识服务统一门面
  *
- * <p>职责：
- * - 提供代码图谱查询能力（GraphService）
- * - 提供长期记忆管理能力（MemoryService）
- * - 提供向量语义检索能力（RagService）
- * - 提供混合搜索能力（HybridSearchService）
- * - 提供智能文档生成能力（WikiService）
- *
- * <p>设计原则：
- * - 外部模块仅依赖此接口，不感知内部实现
- * - 所有操作均返回 Mono，支持响应式编程
- * - 使用领域模型（domain）封装请求和响应
- * - 隐藏 graph/memory/rag/wiki 内部模块
- *
- * <p>架构定位：
- * - 门面层（Facade Layer）
- * - 协调和委托给内部 SPI 服务
- * - 提供统一的生命周期管理
  */
 public interface KnowledgeService {
 
