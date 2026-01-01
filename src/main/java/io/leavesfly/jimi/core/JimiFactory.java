@@ -25,7 +25,6 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.nio.file.Path;
-
 import java.util.List;
 
 /**
@@ -233,18 +232,4 @@ public class JimiFactory {
         });
     }
 
-    // ==================== 兼容旧 API（过渡期保留） ====================
-
-    /**
-     * @deprecated 使用 {@link #createEngine()} Builder 模式代替
-     */
-    @Deprecated
-    public Mono<JimiEngine> createSoul(
-            Session session,
-            Path agentSpecPath,
-            String modelName,
-            boolean yolo,
-            List<Path> mcpConfigFiles) {
-        return doCreateEngine(session, agentSpecPath, modelName, yolo, mcpConfigFiles);
-    }
 }

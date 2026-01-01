@@ -1,7 +1,7 @@
 package io.leavesfly.jimi.core.engine.executor;
 
 import io.leavesfly.jimi.core.engine.context.Context;
-import io.leavesfly.jimi.core.engine.toolcall.ToolCallFilter;
+import io.leavesfly.jimi.core.engine.toolcall.ToolCallValidator;
 import io.leavesfly.jimi.llm.ChatCompletionChunk;
 import io.leavesfly.jimi.llm.ChatCompletionResult;
 import io.leavesfly.jimi.llm.message.FunctionCall;
@@ -40,7 +40,7 @@ public class ResponseProcessor {
     private Wire wire;
 
     @Autowired
-    private ToolCallFilter toolCallFilter;
+    private ToolCallValidator toolCallValidator;
 
 
     /**
@@ -304,7 +304,7 @@ public class ResponseProcessor {
 
         log.debug("构建 Assistant 消息: content_length={}, toolCalls_count={}", contentLength, toolCallsCount);
 
-        List<ToolCall> validToolCalls = toolCallFilter.filterValid(acc.toolCalls);
+        List<ToolCall> validToolCalls = toolCallValidator.filterValid(acc.toolCalls);
         log.info("过滤后有效工具调用数量: {} (原始: {})", validToolCalls.size(), acc.toolCalls.size());
 
         return validToolCalls.isEmpty()
