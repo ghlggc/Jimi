@@ -37,7 +37,7 @@ build/
 .vscode/
 .qoder/
 **/.jimi/config.yml
-.jimi
+
 
 ### Mac OS ###
 .DS_Store
