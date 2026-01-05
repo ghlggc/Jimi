@@ -3,6 +3,7 @@ package io.leavesfly.jimi.tool.core.bash;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import io.leavesfly.jimi.core.interaction.approval.ApprovalResponse;
 import io.leavesfly.jimi.core.interaction.approval.Approval;
+import io.leavesfly.jimi.core.sandbox.SandboxValidator;
 import io.leavesfly.jimi.tool.AbstractTool;
 import io.leavesfly.jimi.tool.ToolResult;
 import io.leavesfly.jimi.tool.ToolResultBuilder;
@@ -36,6 +37,7 @@ public class Bash extends AbstractTool<Bash.Params> {
     private static final String RUN_COMMAND_ACTION = "run shell command";
     
     private Approval approval;
+    private SandboxValidator sandboxValidator;
     
     /**
      * 参数模型
@@ -77,6 +79,13 @@ public class Bash extends AbstractTool<Bash.Params> {
         this.approval = approval;
     }
     
+    /**
+     * 设置 SandboxValidator（运行时注入）
+     */
+    public void setSandboxValidator(SandboxValidator sandboxValidator) {
+        this.sandboxValidator = sandboxValidator;
+    }
+    
     @Override
     public Mono<ToolResult> execute(Params params) {
         return Mono.defer(() -> {
@@ -96,7 +105,37 @@ public class Bash extends AbstractTool<Bash.Params> {
                 ));
             }
             
-            // 请求审批
+            // 沙箱验证
+            if (sandboxValidator != null) {
+                SandboxValidator.ValidationResult sandboxResult = 
+                        sandboxValidator.validateShellCommand(params.command);
+                
+                // 被沙箱拒绝
+                if (!sandboxResult.isAllowed() && !sandboxResult.isRequiresApproval()) {
+                    return Mono.just(ToolResult.error(
+                        "SANDBOXING: " + sandboxResult.getReason(),
+                        "Sandbox violation"
+                    ));
+                }
+                
+                // 沙箱需要审批，调整审批描述
+                if (sandboxResult.isRequiresApproval()) {
+                    String approvalDesc = String.format(
+                        "Run command `%s` (Sandbox: %s)",
+                        params.command,
+                        sandboxResult.getReason()
+                    );
+                    return approval.requestApproval("bash", RUN_COMMAND_ACTION, approvalDesc)
+                        .flatMap(response -> {
+                            if (response == ApprovalResponse.REJECT) {
+                                return Mono.just(ToolResult.rejected());
+                            }
+                            return executeCommand(params.command, params.timeout);
+                        });
+                }
+            }
+            
+            // 正常审批流程
             return approval.requestApproval("bash", RUN_COMMAND_ACTION, String.format("Run command `%s`", params.command))
                 .flatMap(response -> {
                     if (response == ApprovalResponse.REJECT) {

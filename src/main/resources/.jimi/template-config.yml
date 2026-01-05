@@ -269,6 +269,42 @@ meta_tool:
   max_code_length: 10000       # 最大代码长度（字符）
   log_execution_details: true  # 是否记录执行详情
 
+# ==================== 沙箱配置 ====================
+
+sandbox:
+  enabled: false                # 是否启用沙箱机制（默认关闭）
+  mode: RESTRICTED              # 沙箱模式：STRICT（严格）/RESTRICTED（受限）/PERMISSIVE（宽松）
+  
+  # 文件系统限制配置
+  filesystem:
+    allow_write_outside_workspace: false  # 是否允许在工作区外写入
+    denied_paths:                         # 禁止访问的路径（支持 glob 模式）
+      - "/etc/**"
+      - "/usr/**"
+      - "/System/**"
+      - "**/.ssh/**"
+      - "**/.aws/**"
+      - "**/.kube/**"
+    max_file_size: 10485760       # 最大文件大小（字节，默认 10MB）
+  
+  # Shell 命令限制配置
+  shell:
+    dangerous_patterns:           # 危险命令模式（支持正则表达式）
+      - "rm -rf"
+      - ":(){ :|:& };:"            # fork 炸弹
+      - "dd if="
+      - "> /dev/sda"
+      - "mkfs\\."
+      - "chmod -R 777"
+    allowed_commands: []          # 白名单命令（如果为空，则使用黑名单模式）
+  
+  # 网络访问限制配置
+  network:
+    denied_domains:               # 禁止访问的域名
+      - "169.254.169.254"          # AWS metadata endpoint
+      - "metadata.google.internal"  # GCP metadata endpoint
+      - "100.100.100.200"          # 阿里云 metadata endpoint
+
 # ==================== Shell UI 配置 ====================
 
 shell_ui:

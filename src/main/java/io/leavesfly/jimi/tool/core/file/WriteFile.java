@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import io.leavesfly.jimi.core.interaction.approval.ApprovalResponse;
 import io.leavesfly.jimi.core.interaction.approval.Approval;
 import io.leavesfly.jimi.core.engine.runtime.BuiltinSystemPromptArgs;
+import io.leavesfly.jimi.core.sandbox.SandboxValidator;
 import io.leavesfly.jimi.tool.AbstractTool;
 import io.leavesfly.jimi.tool.ToolResult;
 import lombok.AllArgsConstructor;
@@ -35,6 +36,7 @@ public class WriteFile extends AbstractTool<WriteFile.Params> {
     
     private Path workDir;
     private Approval approval;
+    private SandboxValidator sandboxValidator;
     
     /**
      * 参数模型
@@ -86,6 +88,10 @@ public class WriteFile extends AbstractTool<WriteFile.Params> {
         this.approval = approval;
     }
     
+    public void setSandboxValidator(SandboxValidator sandboxValidator) {
+        this.sandboxValidator = sandboxValidator;
+    }
+    
     @Override
     public Mono<ToolResult> execute(Params params) {
         return Mono.defer(() -> {
@@ -135,38 +141,54 @@ public class WriteFile extends AbstractTool<WriteFile.Params> {
                     ));
                 }
                 
-                // 请求审批
+                // 沙箱验证
+                if (sandboxValidator != null) {
+                    // 验证文件路径
+                    SandboxValidator.ValidationResult pathResult = 
+                            sandboxValidator.validateFilePath(targetPath, SandboxValidator.FileOperation.WRITE);
+                    
+                    if (!pathResult.isAllowed() && !pathResult.isRequiresApproval()) {
+                        return Mono.just(ToolResult.error(
+                            "SANDBOXING: " + pathResult.getReason(),
+                            "Sandbox violation"
+                        ));
+                    }
+                    
+                    // 验证文件大小
+                    SandboxValidator.ValidationResult sizeResult = 
+                            sandboxValidator.validateFileSize(params.content.length());
+                    
+                    if (!sizeResult.isAllowed()) {
+                        return Mono.just(ToolResult.error(
+                            "SANDBOXING: " + sizeResult.getReason(),
+                            "Sandbox violation"
+                        ));
+                    }
+                    
+                    // 沙箱需要审批
+                    if (pathResult.isRequiresApproval()) {
+                        String approvalDesc = String.format(
+                            "Write file `%s` (Sandbox: %s)",
+                            params.path,
+                            pathResult.getReason()
+                        );
+                        return approval.requestApproval("write-file", EDIT_ACTION, approvalDesc)
+                            .flatMap(response -> {
+                                if (response == ApprovalResponse.REJECT) {
+                                    return Mono.just(ToolResult.rejected());
+                                }
+                                return doWriteFile(targetPath, params);
+                            });
+                    }
+                }
+                
+                // 正常审批流程
                 return approval.requestApproval("write-file", EDIT_ACTION, String.format("Write file `%s`", params.path))
                     .flatMap(response -> {
                         if (response == ApprovalResponse.REJECT) {
                             return Mono.just(ToolResult.rejected());
                         }
-                        
-                        try {
-                            // 直接写入文件内容（Jackson已正确处理JSON层的转义）
-                            if ("overwrite".equals(params.mode)) {
-                                Files.writeString(targetPath, params.content);
-                            } else {
-                                Files.writeString(targetPath, params.content, 
-                                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-                            }
-                            
-                            // 获取文件大小
-                            long fileSize = Files.size(targetPath);
-                            String action = "overwrite".equals(params.mode) ? "overwritten" : "appended to";
-                            
-                            return Mono.just(ToolResult.ok(
-                                "",
-                                String.format("File successfully %s. Current size: %d bytes.", action, fileSize)
-                            ));
-                            
-                        } catch (Exception e) {
-                            log.error("Failed to write file: {}", params.path, e);
-                            return Mono.just(ToolResult.error(
-                                String.format("Failed to write to %s. Error: %s", params.path, e.getMessage()),
-                                "Failed to write file"
-                            ));
-                        }
+                        return doWriteFile(targetPath, params);
                     });
                     
             } catch (Exception e) {
@@ -214,6 +236,37 @@ public class WriteFile extends AbstractTool<WriteFile.Params> {
         }
         
         return null;
+    }
+    
+    /**
+     * 执行文件写入
+     */
+    private Mono<ToolResult> doWriteFile(Path targetPath, Params params) {
+        try {
+            // 直接写入文件内容（Jackson已正确处理JSON层的转义）
+            if ("overwrite".equals(params.mode)) {
+                Files.writeString(targetPath, params.content);
+            } else {
+                Files.writeString(targetPath, params.content, 
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            }
+            
+            // 获取文件大小
+            long fileSize = Files.size(targetPath);
+            String action = "overwrite".equals(params.mode) ? "overwritten" : "appended to";
+            
+            return Mono.just(ToolResult.ok(
+                "",
+                String.format("File successfully %s. Current size: %d bytes.", action, fileSize)
+            ));
+            
+        } catch (Exception e) {
+            log.error("Failed to write file: {}", params.path, e);
+            return Mono.just(ToolResult.error(
+                String.format("Failed to write to %s. Error: %s", params.path, e.getMessage()),
+                "Failed to write file"
+            ));
+        }
     }
 
 }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import io.leavesfly.jimi.core.interaction.approval.ApprovalResponse;
 import io.leavesfly.jimi.core.interaction.approval.Approval;
 import io.leavesfly.jimi.core.engine.runtime.BuiltinSystemPromptArgs;
+import io.leavesfly.jimi.core.sandbox.SandboxValidator;
 import io.leavesfly.jimi.tool.AbstractTool;
 import io.leavesfly.jimi.tool.ToolResult;
 import lombok.AllArgsConstructor;
@@ -38,6 +39,7 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
     
     private Path workDir;
     private Approval approval;
+    private SandboxValidator sandboxValidator;
     
     /**
      * 参数模型 - 扁平化设计，便于 LLM 生成正确的 JSON
@@ -80,6 +82,10 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
     
     public void setApproval(Approval approval) {
         this.approval = approval;
+    }
+    
+    public void setSandboxValidator(SandboxValidator sandboxValidator) {
+        this.sandboxValidator = sandboxValidator;
     }
     
     @Override
@@ -140,50 +146,42 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
                     return Mono.just(pathError);
                 }
                 
-                // 请求审批
+                // 沙箱验证
+                if (sandboxValidator != null) {
+                    SandboxValidator.ValidationResult sandboxResult = 
+                            sandboxValidator.validateFilePath(targetPath, SandboxValidator.FileOperation.WRITE);
+                    
+                    if (!sandboxResult.isAllowed() && !sandboxResult.isRequiresApproval()) {
+                        return Mono.just(ToolResult.error(
+                            "SANDBOXING: " + sandboxResult.getReason(),
+                            "Sandbox violation"
+                        ));
+                    }
+                    
+                    // 沙箱需要审批
+                    if (sandboxResult.isRequiresApproval()) {
+                        String approvalDesc = String.format(
+                            "Edit file `%s` (Sandbox: %s)",
+                            params.path,
+                            sandboxResult.getReason()
+                        );
+                        return approval.requestApproval("replace-file", EDIT_ACTION, approvalDesc)
+                            .flatMap(response -> {
+                                if (response == ApprovalResponse.REJECT) {
+                                    return Mono.just(ToolResult.rejected());
+                                }
+                                return doReplaceString(targetPath, params);
+                            });
+                    }
+                }
+                
+                // 正常审批流程
                 return approval.requestApproval("replace-file", EDIT_ACTION, String.format("Edit file `%s`", params.path))
                     .flatMap(response -> {
                         if (response == ApprovalResponse.REJECT) {
                             return Mono.just(ToolResult.rejected());
                         }
-                        
-                        try {
-                            // 读取文件内容
-                            String content = Files.readString(targetPath);
-                            String originalContent = content;
-                            
-                            // 只替换第一次出现
-                            int index = content.indexOf(params.old_str);
-                            if (index != -1) {
-                                String finalNewStr = params.new_str != null ? params.new_str : "";
-                                content = content.substring(0, index) + 
-                                         finalNewStr + 
-                                         content.substring(index + params.old_str.length());
-                            }
-                            
-                            // 检查是否有变化
-                            if (content.equals(originalContent)) {
-                                return Mono.just(ToolResult.error(
-                                    "No replacements were made. The old_str was not found in the file.",
-                                    "String not found"
-                                ));
-                            }
-                            
-                            // 写回文件
-                            Files.writeString(targetPath, content);
-                            
-                            return Mono.just(ToolResult.ok(
-                                "",
-                                "File edited successfully."
-                            ));
-                            
-                        } catch (Exception e) {
-                            log.error("Failed to edit file: {}", params.path, e);
-                            return Mono.just(ToolResult.error(
-                                String.format("Failed to edit. Error: %s", e.getMessage()),
-                                "Edit failed"
-                            ));
-                        }
+                        return doReplaceString(targetPath, params);
                     });
                     
             } catch (Exception e) {
@@ -221,5 +219,48 @@ public class StrReplaceFile extends AbstractTool<StrReplaceFile.Params> {
         }
         
         return null;
+    }
+    
+    /**
+     * 执行字符串替换
+     */
+    private Mono<ToolResult> doReplaceString(Path targetPath, Params params) {
+        try {
+            // 读取文件内容
+            String content = Files.readString(targetPath);
+            String originalContent = content;
+            
+            // 只替换第一次出现
+            int index = content.indexOf(params.old_str);
+            if (index != -1) {
+                String finalNewStr = params.new_str != null ? params.new_str : "";
+                content = content.substring(0, index) + 
+                         finalNewStr + 
+                         content.substring(index + params.old_str.length());
+            }
+            
+            // 检查是否有变化
+            if (content.equals(originalContent)) {
+                return Mono.just(ToolResult.error(
+                    "No replacements were made. The old_str was not found in the file.",
+                    "String not found"
+                ));
+            }
+            
+            // 写回文件
+            Files.writeString(targetPath, content);
+            
+            return Mono.just(ToolResult.ok(
+                "",
+                "File edited successfully."
+            ));
+            
+        } catch (Exception e) {
+            log.error("Failed to edit file: {}", params.path, e);
+            return Mono.just(ToolResult.error(
+                String.format("Failed to edit. Error: %s", e.getMessage()),
+                "Edit failed"
+            ));
+        }
     }
 }

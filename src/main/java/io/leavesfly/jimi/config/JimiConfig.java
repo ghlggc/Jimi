@@ -113,6 +113,14 @@ public class JimiConfig {
     @Builder.Default
     private MetaToolConfig metaTool = new MetaToolConfig();
 
+    /**
+     * 沙箱配置
+     */
+    @JsonProperty("sandbox")
+    @Valid
+    @Builder.Default
+    private SandboxConfig sandbox = new SandboxConfig();
+
     
     /**
      * 验证配置的一致性

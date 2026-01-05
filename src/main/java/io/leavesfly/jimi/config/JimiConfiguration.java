@@ -5,15 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.leavesfly.jimi.config.info.GraphConfig;
-import io.leavesfly.jimi.config.info.LLMProviderConfig;
-import io.leavesfly.jimi.config.info.ShellUIConfig;
-import io.leavesfly.jimi.config.info.VectorIndexConfig;
+import io.leavesfly.jimi.config.info.*;
 import io.leavesfly.jimi.core.compaction.Compaction;
 import io.leavesfly.jimi.core.compaction.SimpleCompaction;
 import io.leavesfly.jimi.core.engine.executor.ContextManager;
 import io.leavesfly.jimi.core.engine.executor.MemoryRecorder;
 import io.leavesfly.jimi.core.engine.executor.ResponseProcessor;
+import io.leavesfly.jimi.core.sandbox.SandboxValidator;
 import io.leavesfly.jimi.exception.ConfigException;
 import io.leavesfly.jimi.knowledge.graph.GraphManager;
 import io.leavesfly.jimi.knowledge.rag.*;
@@ -144,7 +142,7 @@ public class JimiConfiguration {
      */
     @Bean
     @Autowired
-    public io.leavesfly.jimi.config.info.MetaToolConfig metaToolConfig(JimiConfig jimiConfig) {
+    public MetaToolConfig metaToolConfig(JimiConfig jimiConfig) {
         return jimiConfig.getMetaTool();
     }
 
@@ -154,8 +152,30 @@ public class JimiConfiguration {
      */
     @Bean
     @Autowired
-    public io.leavesfly.jimi.config.info.MemoryConfig memoryConfig(JimiConfig jimiConfig) {
+    public MemoryConfig memoryConfig(JimiConfig jimiConfig) {
         return jimiConfig.getMemory();
+    }
+
+    /**
+     * SandboxConfig Bean - 沙箱配置
+     * 从 JimiConfig 中获取
+     */
+    @Bean
+    @Autowired
+    public SandboxConfig sandboxConfig(JimiConfig jimiConfig) {
+        return jimiConfig.getSandbox();
+    }
+
+    /**
+     * SandboxValidator Bean - 沙箱验证器
+     * 需要 SandboxConfig 和工作目录
+     * 工作目录会在运行时动态设置，这里先用null初始化
+     */
+    @Bean
+    @Autowired
+    public SandboxValidator sandboxValidator(SandboxConfig sandboxConfig) {
+        // 工作目录会在 JimiFactory 创建 Runtime 时设置
+        return new SandboxValidator(sandboxConfig, null);
     }
 
     /**

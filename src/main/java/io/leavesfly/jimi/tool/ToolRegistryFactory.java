@@ -132,16 +132,24 @@ public class ToolRegistryFactory {
     private ToolRegistry createStandardRegistry(BuiltinSystemPromptArgs builtinArgs, Approval approval, Session session) {
         ToolRegistry registry = new ToolRegistry(objectMapper);
 
+        // 获取 SandboxValidator（如果存在）
+        io.leavesfly.jimi.core.sandbox.SandboxValidator sandboxValidator = null;
+        try {
+            sandboxValidator = applicationContext.getBean(io.leavesfly.jimi.core.sandbox.SandboxValidator.class);
+        } catch (Exception e) {
+            log.debug("SandboxValidator not available, tools will run without sandbox validation");
+        }
+
         // 注册文件工具
         registry.register(createReadFile(builtinArgs));
-        registry.register(createWriteFile(builtinArgs, approval));
-        registry.register(createStrReplaceFile(builtinArgs, approval));
+        registry.register(createWriteFile(builtinArgs, approval, sandboxValidator));
+        registry.register(createStrReplaceFile(builtinArgs, approval, sandboxValidator));
         registry.register(createGlob(builtinArgs));
         registry.register(createGrep(builtinArgs));
         // PatchFile 已弃用，统一使用 StrReplaceFile（参数更简单，LLM 更容易生成正确格式）
 
         // 注册 Bash 工具
-        registry.register(createBash(approval));
+        registry.register(createBash(approval, sandboxValidator));
 
         // 注册 Web 工具
         registry.register(createFetchURL());
@@ -167,20 +175,28 @@ public class ToolRegistryFactory {
     /**
      * 创建 WriteFile 工具实例
      */
-    private WriteFile createWriteFile(BuiltinSystemPromptArgs builtinArgs, Approval approval) {
+    private WriteFile createWriteFile(BuiltinSystemPromptArgs builtinArgs, Approval approval, 
+                                       io.leavesfly.jimi.core.sandbox.SandboxValidator sandboxValidator) {
         WriteFile tool = applicationContext.getBean(WriteFile.class);
         tool.setBuiltinArgs(builtinArgs);
         tool.setApproval(approval);
+        if (sandboxValidator != null) {
+            tool.setSandboxValidator(sandboxValidator);
+        }
         return tool;
     }
 
     /**
      * 创建 StrReplaceFile 工具实例
      */
-    private StrReplaceFile createStrReplaceFile(BuiltinSystemPromptArgs builtinArgs, Approval approval) {
+    private StrReplaceFile createStrReplaceFile(BuiltinSystemPromptArgs builtinArgs, Approval approval,
+                                                 io.leavesfly.jimi.core.sandbox.SandboxValidator sandboxValidator) {
         StrReplaceFile tool = applicationContext.getBean(StrReplaceFile.class);
         tool.setBuiltinArgs(builtinArgs);
         tool.setApproval(approval);
+        if (sandboxValidator != null) {
+            tool.setSandboxValidator(sandboxValidator);
+        }
         return tool;
     }
 
@@ -205,9 +221,12 @@ public class ToolRegistryFactory {
     /**
      * 创建 Bash 工具实例
      */
-    private Bash createBash(Approval approval) {
+    private Bash createBash(Approval approval, io.leavesfly.jimi.core.sandbox.SandboxValidator sandboxValidator) {
         Bash tool = applicationContext.getBean(Bash.class);
         tool.setApproval(approval);
+        if (sandboxValidator != null) {
+            tool.setSandboxValidator(sandboxValidator);
+        }
         return tool;
     }
 
