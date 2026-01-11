@@ -20,14 +20,14 @@ providers:
       window_ms: 4000      # 时间窗口（毫秒）
       max_requests: 4      # 窗口内最大请求数
       sleep_ms: 3000       # 超限后等待时间（毫秒）
-  
+
   # Ollama 本地模型配置
   ollama:
     type: ollama
     base_url: http://localhost:11434/v1
     api_key: ""  # Ollama 通常不需要 API Key
     custom_headers: { }
-  
+
   # Kimi (Moonshot) 配置
   kimi:
     type: kimi
@@ -38,7 +38,7 @@ providers:
       window_ms: 60000
       max_requests: 10
       sleep_ms: 1000
-  
+
   # 智谱 GLM 配置
   glm:
     type: glm
@@ -49,7 +49,7 @@ providers:
       window_ms: 60000
       max_requests: 20
       sleep_ms: 1000
-  
+
   # MiniMax 配置
   minimax:
     type: minimax
@@ -69,86 +69,86 @@ models:
     provider: qwen              # 使用的提供商（必须在 providers 中定义）
     model: qwen3-max            # 模型名称
     max_context_size: 200000    # 最大上下文长度（Token）
-  
+
   qwen3-next-80b-a3b-thinking:
     provider: qwen
     model: qwen3-next-80b-a3b-thinking
     max_context_size: 200000
-  
+
   qwen3-next-80b-a3b-instruct:
     provider: qwen
     model: qwen3-next-80b-a3b-instruct
     max_context_size: 200000
-  
+
   qwen-max:
     provider: qwen
     model: qwen-max
     max_context_size: 200000
-  
+
   qwen3-coder-plus:
     provider: qwen
     model: qwen3-coder-plus
     max_context_size: 200000
-  
+
   qwen3-coder-flash:
     provider: qwen
     model: qwen3-coder-flash
     max_context_size: 200000
-  
+
   deepseek-v3.2-exp:
     provider: qwen
     model: deepseek-v3.2-exp
     max_context_size: 200000
-  
+
   # Kimi 系列
   kimi-k2-thinking-turbo:
     provider: kimi
     model: kimi-k2-thinking-turbo
     max_context_size: 200000
-  
+
   kimi-k2-instruct:
     provider: kimi
     model: kimi-k2-instruct
     max_context_size: 200000
-  
+
   # 智谱 GLM 系列
   glm-4.7:
     provider: glm
     model: glm-4.7
     max_context_size: 200000
-  
+
   glm-4-flash:
     provider: glm
     model: glm-4-flash
     max_context_size: 128000
-  
+
   glm-4-plus:
     provider: glm
     model: glm-4-plus
     max_context_size: 128000
-  
+
   # MiniMax 系列
   minimax-m2.1:
     provider: minimax
     model: MiniMax-M2.1
     max_context_size: 200000
-  
+
   minimax-m2.1-lightning:
     provider: minimax
     model: MiniMax-M2.1-lightning
     max_context_size: 200000
-  
+
   minimax-m2:
     provider: minimax
     model: MiniMax-M2
     max_context_size: 200000
-  
+
   # Ollama 本地模型
   qwen3:4b-instruct-2507-q8_0:
     provider: ollama
     model: qwen3:4b-instruct-2507-q8_0
     max_context_size: 100000
-  
+
   qwen3:4b-thinking-2507-q8_0:
     provider: ollama
     model: qwen3:4b-thinking-2507-q8_0
@@ -189,11 +189,11 @@ graph:
   storage_path: .jimi/code_graph  # 图存储路径
   auto_load: true                 # 启动时是否自动加载已保存的图
   auto_save: true                 # 构建后是否自动保存
-  
+
   # 包含的文件模式（支持 glob 语法）
   include_patterns:
     - "**/*.java"
-  
+
   # 排除的文件模式
   exclude_patterns:
     - "**/test/**"
@@ -202,13 +202,13 @@ graph:
     - "**/build/**"
     - "**/node_modules/**"
     - "**/.git/**"
-  
+
   # 缓存配置
   cache:
     enabled: true      # 是否启用缓存
     ttl: 3600          # 缓存过期时间（秒）
     max_size: 10000    # 最大缓存条目数
-  
+
   # 搜索配置
   search:
     max_results: 50           # 最大搜索结果数
@@ -223,26 +223,26 @@ skill:
   enabled: false                          # 是否启用 Skills 功能
   auto_match: true                        # 是否自动匹配 Skills
   enable_claude_code_compatibility: true  # 是否启用 Claude Code 兼容模式
-  
+
   # 匹配配置
   matching:
     score_threshold: 30              # 用户输入匹配的最低得分阈值（0-100）
     context_score_threshold: 15      # 上下文匹配的最低得分阈值（0-100）
     max_matched_skills: 5            # 最大匹配 Skills 数量
     enable_context_matching: false   # 是否启用上下文动态匹配
-  
+
   # 缓存配置
   cache:
     enabled: true      # 是否启用缓存
     ttl: 3600          # 缓存过期时间（秒）
     max_size: 1000     # 缓存最大条目数
-  
+
   # 脚本执行配置
   script_execution:
     enabled: true           # 是否启用脚本执行
     timeout: 60             # 脚本执行超时时间（秒）
     require_approval: false # 是否需要审批
-  
+
   # 日志配置
   logging:
     log_match_details: false         # 是否记录匹配详情
@@ -269,16 +269,18 @@ meta_tool:
   max_code_length: 10000       # 最大代码长度（字符）
   log_execution_details: true  # 是否记录执行详情
 
+
+
 # ==================== 沙箱配置 ====================
 
 sandbox:
   enabled: false                # 是否启用沙箱机制（默认关闭）
   mode: RESTRICTED              # 沙箱模式：STRICT（严格）/RESTRICTED（受限）/PERMISSIVE（宽松）
-  
+
   # 文件系统限制配置
   filesystem:
     allow_write_outside_workspace: false  # 是否允许在工作区外写入
-    denied_paths:                         # 禁止访问的路径（支持 glob 模式）
+    denied_paths: # 禁止访问的路径（支持 glob 模式）
       - "/etc/**"
       - "/usr/**"
       - "/System/**"
@@ -286,21 +288,21 @@ sandbox:
       - "**/.aws/**"
       - "**/.kube/**"
     max_file_size: 10485760       # 最大文件大小（字节，默认 10MB）
-  
+
   # Shell 命令限制配置
   shell:
-    dangerous_patterns:           # 危险命令模式（支持正则表达式）
+    dangerous_patterns: # 危险命令模式（支持正则表达式）
       - "rm -rf"
       - ":(){ :|:& };:"            # fork 炸弹
       - "dd if="
       - "> /dev/sda"
       - "mkfs\\."
       - "chmod -R 777"
-    allowed_commands: []          # 白名单命令（如果为空，则使用黑名单模式）
-  
+    allowed_commands: [ ]          # 白名单命令（如果为空，则使用黑名单模式）
+
   # 网络访问限制配置
   network:
-    denied_domains:               # 禁止访问的域名
+    denied_domains: # 禁止访问的域名
       - "169.254.169.254"          # AWS metadata endpoint
       - "metadata.google.internal"  # GCP metadata endpoint
       - "100.100.100.200"          # 阿里云 metadata endpoint

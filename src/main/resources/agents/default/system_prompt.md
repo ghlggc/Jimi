@@ -7,7 +7,7 @@
 - **时间**: ${JIMI_NOW}
 - **工作目录**: ${JIMI_WORK_DIR}
 - **目录结构**: ${JIMI_WORK_DIR_LS}
-- **项目配置**: ${JIMI_AGENTS_MD}
+- **项目信息**: ${JIMI_AGENTS_MD}
 
 ## 指导原则
 
