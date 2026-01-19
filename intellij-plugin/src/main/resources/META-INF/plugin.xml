@@ -5,7 +5,7 @@
     <vendor email="support@leavesfly.io">Leavesfly</vendor>
 
     <description><![CDATA[
-    Jimi AI Assistant - 基于MCP协议的AI编程助手
+    Jimi AI Assistant - 基于 MCP 协议的 AI 编程助手
     <br/>
     <ul>
         <li>自然语言代码生成和重构</li>
@@ -15,6 +15,7 @@
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.vcs</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow 

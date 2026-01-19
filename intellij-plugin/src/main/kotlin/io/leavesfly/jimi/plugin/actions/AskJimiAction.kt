@@ -6,8 +6,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.wm.ToolWindowManager
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
+import io.leavesfly.jimi.plugin.ui.JimiToolWindowPanel
 
 class AskJimiAction : AnAction() {
     
@@ -46,14 +45,21 @@ class AskJimiAction : AnAction() {
             |问题：$question
         """.trimMargin()
         
-        // 复制到剪贴板
-        val clipboard = Toolkit.getDefaultToolkit().systemClipboard
-        clipboard.setContents(StringSelection(fullInput), null)
-        
         // 打开 Jimi ToolWindow
         val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Jimi")
-        toolWindow?.show {
-            Messages.showInfoMessage(project, "内容已复制到剪贴板，请在 Jimi 窗口中粘贴发送", "Ask Jimi")
+        if (toolWindow == null) {
+            Messages.showWarningDialog(project, "无法打开 Jimi 窗口", "Ask Jimi")
+            return
+        }
+        
+        toolWindow.show {
+            val content = toolWindow.contentManager.contents.firstOrNull()
+            val panel = content?.component as? JimiToolWindowPanel
+            if (panel == null) {
+                Messages.showWarningDialog(project, "Jimi 窗口未就绪，请稍后重试", "Ask Jimi")
+                return@show
+            }
+            panel.submitExternalInput(fullInput)
         }
     }
     

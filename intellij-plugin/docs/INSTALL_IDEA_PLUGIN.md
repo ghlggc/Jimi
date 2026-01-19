@@ -76,14 +76,9 @@
 
 ## 前置要求
 
-**必须**：先启动Jimi MCP Server
+插件会在首次请求时自动启动 Jimi MCP Server（`--mcp-server` 模式），无需手动启动服务。
 
-```bash
-cd /Users/yefei.yf/QoderCLI/Jimi
-java -jar target/jimi-0.1.0.jar --mcp-server
-```
-
-插件会自动查找以下位置的JAR：
+插件会自动查找以下位置的 JAR：
 1. `../Jimi/target/jimi-0.1.0.jar`（相对当前项目）
 2. `~/.jimi/jimi-0.1.0.jar`（用户目录）
 

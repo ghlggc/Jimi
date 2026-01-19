@@ -1,6 +1,6 @@
 # Jimi IntelliJ IDEA Plugin
 
-基于MCP协议的轻量级IDEA插件,通过进程隔离方式集成Jimi AI助手。
+基于 MCP 协议的轻量级 IDEA 插件,通过进程隔离方式集成 Jimi AI 助手。
 
 ## 架构
 
@@ -58,7 +58,7 @@ intellij-plugin/
 
 ## 核心功能
 
-- ✅ 通过MCP协议与Jimi通信
+- ✅ 通过 MCP 协议与 Jimi 通信
 - ✅ 独立进程运行,互不影响
 - ✅ 实时显示任务执行进度
 - ✅ 支持自然语言交互
