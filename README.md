@@ -17,6 +17,12 @@
 
 ## ✨ 核心特性
 
+### 🖥️ 多端支持
+
+- **CLI命令行** - 轻量级终端交互，适合快速开发
+- **JWork桌面应用** - OpenWork风格的JavaFX GUI，可视化AI协作台
+- **IntelliJ插件** - IDE内直接集成，无缝开发体验
+
 ### 🤖 多Agent智能协作
 
 内置10+专业Agent覆盖开发全流程：
@@ -121,6 +127,23 @@ execution:
 - 会话管理：持久化与断点恢复
 - 上下文压缩：智能Token优化
 
+### 🖥️ JWork桌面应用
+
+可视化的AI协作台，提供丰富的图形界面：
+
+- 工作区选择与管理
+- 会话管理与流式输出
+- 执行计划时间线
+- Skills管理器
+- Markdown渲染支持
+- 本地嵌入/远程连接模式
+
+```bash
+# 启动JWork
+cd jwork
+mvn javafx:run
+```
+
 ## 🎯 快速开始
 
 ### 环境要求
@@ -129,12 +152,24 @@ execution:
 - Maven 3.6+
 - macOS / Linux / Windows
 
-### 一键安装
+### CLI命令行
 
 ```bash
 git clone https://github.com/leavesfly/Jimi.git
 cd Jimi
 ./scripts/quick-install.sh
+```
+
+### JWork桌面应用
+
+```bash
+# 构建并运行
+cd jwork
+mvn clean install
+mvn javafx:run
+
+# 或者使用打包后的jar
+java -jar target/jwork-0.1.0.jar
 ```
 
 ### 分步安装
@@ -247,6 +282,27 @@ graph TB
 - **协议集成**: MCP SDK 0.12.1
 
 ## 📚 使用指南
+
+### CLI命令行使用
+
+```bash
+# 切换Agent
+/switch design
+
+# 查看Agent列表
+/agents
+
+# 构建代码图
+/graph build
+```
+
+### JWork桌面应用使用
+
+1. **选择工作区** - 点击“选择工作区”选择项目目录
+2. **创建会话** - 选择Agent类型，点击“开始会话”
+3. **AI对话** - 在聊天窗口输入问题，实时查看响应
+4. **查看执行计划** - 切换到“执行计划”查看Todo列表
+5. **Skills管理** - 在Skills面板管理技能包
 
 ### Agent使用
 
