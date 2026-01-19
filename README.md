@@ -1,6 +1,6 @@
-# Jimi - Java开发者的AI编程助手
+# Jimi - 打造Java程序员专属的ClaudeCode
 
-> 纯Java实现的AI驱动智能代理系统，为Java开发者提供类Cursor IDE体验的开源CLI工具
+> 纯Java实现的AI驱动智能代理系统，为Java开发者提供类ClaudeCode体验的开源CLI工具
 
 [![Java](https://img.shields.io/badge/Java-17+-orange.svg)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-brightgreen.svg)](https://spring.io/projects/spring-boot)
