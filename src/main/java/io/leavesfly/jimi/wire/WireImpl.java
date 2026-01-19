@@ -4,34 +4,43 @@ import io.leavesfly.jimi.wire.message.WireMessage;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * Wire 消息总线实现
  * 使用 Reactor Sinks 实现消息的异步传递
- * 使用 replay().autoConnect() 确保多个订阅者共享同一个流,避免重复消息
+ * 支持通过 reset() 重置 Sink 以支持多次执行
  */
 public class WireImpl implements Wire {
     
-    private final Sinks.Many<WireMessage> sink;
-    private final Flux<WireMessage> sharedFlux;
+    private final AtomicReference<Sinks.Many<WireMessage>> sinkRef;
     
     public WireImpl() {
-        this.sink = Sinks.many().multicast().onBackpressureBuffer();
-        // 使用 share() 确保所有订阅者共享同一个上游订阅,避免重复消息
-        this.sharedFlux = sink.asFlux().share();
+        this.sinkRef = new AtomicReference<>(createSink());
+    }
+    
+    private Sinks.Many<WireMessage> createSink() {
+        return Sinks.many().multicast().onBackpressureBuffer();
     }
     
     @Override
     public void send(WireMessage message) {
-        sink.tryEmitNext(message);
+        sinkRef.get().tryEmitNext(message);
     }
     
     @Override
     public Flux<WireMessage> asFlux() {
-        return sharedFlux;
+        return sinkRef.get().asFlux();
     }
     
     @Override
     public void complete() {
-        sink.tryEmitComplete();
+        sinkRef.get().tryEmitComplete();
+    }
+    
+    @Override
+    public void reset() {
+        // 创建新的 Sink，以支持新的订阅和消息发送
+        sinkRef.set(createSink());
     }
 }

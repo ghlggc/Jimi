@@ -229,6 +229,8 @@
                     <mainClass>io.leavesfly.jimi.JimiApplication</mainClass>
                     <executable>true</executable>
                     <layout>JAR</layout>
+                    <!-- 使用 classifier 保留原始 JAR 供其他模块依赖 -->
+                    <classifier>exec</classifier>
                     <!-- 不排除 Lombok,运行时需要其注解 -->
                 </configuration>
                 <executions>

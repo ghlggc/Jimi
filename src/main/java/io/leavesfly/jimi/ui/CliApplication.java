@@ -11,6 +11,7 @@ import io.leavesfly.jimi.mcp.server.SimpleJimiServer;
 import io.leavesfly.jimi.ui.shell.ShellUI;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
@@ -44,6 +45,9 @@ public class CliApplication implements CommandLineRunner, Runnable {
     private final ApplicationContext applicationContext;
     private final JimiFactory jimiFactory;
     private final CommandRegistry commandRegistry;
+    
+    @Value("${jimi.embedded:false}")
+    private boolean embeddedMode;
 
     @Autowired
     public CliApplication(JimiConfig jimiConfig, SessionManager sessionManager,
@@ -89,6 +93,12 @@ public class CliApplication implements CommandLineRunner, Runnable {
 
     @Override
     public void run(String... args) throws Exception {
+        // 嵌入式模式下跳过 CLI 启动
+        if (embeddedMode) {
+            log.info("Running in embedded mode, skipping CLI startup");
+            return;
+        }
+        
         // 解析命令行参数
         CommandLine commandLine = new CommandLine(this);
         int exitCode = commandLine.execute(args);

@@ -8,6 +8,9 @@ import io.leavesfly.jimi.core.session.Session;
 import io.leavesfly.jimi.tool.AbstractTool;
 import io.leavesfly.jimi.tool.ToolResult;
 import io.leavesfly.jimi.tool.ToolResultBuilder;
+import io.leavesfly.jimi.wire.Wire;
+import io.leavesfly.jimi.wire.WireAware;
+import io.leavesfly.jimi.wire.message.TodoUpdateMessage;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 设置待办事项列表工具
@@ -33,12 +37,13 @@ import java.util.List;
 @Slf4j
 @Component
 @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
-public class SetTodoList extends AbstractTool<SetTodoList.Params> {
+public class SetTodoList extends AbstractTool<SetTodoList.Params> implements WireAware {
     
     private static final String TODO_DIR = ".jimi";
     private static final String TODO_FILE = "todos.json";
     
     private Session session;
+    private Wire wire;
     private final ObjectMapper objectMapper;
     
     /**
@@ -46,6 +51,14 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
      */
     public void setSession(Session session) {
         this.session = session;
+    }
+    
+    /**
+     * 设置 Wire（实现 WireAware 接口）
+     */
+    @Override
+    public void setWire(Wire wire) {
+        this.wire = wire;
     }
     
     /**
@@ -292,10 +305,13 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
             
             // 8. 生成输出
             if (list.isEmpty()) {
+                // 发送空列表通知
+                sendTodoUpdate(list, 0, 0, 0, 0, 0);
                 trb.write("暂无待办事项。\n");
                 return Mono.just(trb.ok("空的待办清单", "空列表"));
             }
             
+            // 统计各状态数量
             int pending = 0, inProgress = 0, done = 0, cancelled = 0, error = 0;
             for (Todo t : list) {
                 String s = normalizeStatus(t.getStatus());
@@ -311,6 +327,9 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
                 String idStr = t.getId() != null ? "#" + t.getId() + " " : "";
                 trb.write(String.format("%s- %s%s [%s]\n", indent, idStr, t.getTitle(), s));
             }
+            
+            // 9. 发送 Wire 消息通知 UI
+            sendTodoUpdate(list, pending, inProgress, done, cancelled, error);
             
             StringBuilder briefBuilder = new StringBuilder();
             briefBuilder.append(String.format("共%d项：", list.size()));
@@ -385,5 +404,37 @@ public class SetTodoList extends AbstractTool<SetTodoList.Params> {
         } catch (IOException e) {
             log.warn("Failed to save todos to {}: {}", todoFile, e.getMessage());
         }
+    }
+    
+    /**
+     * 发送 Todo 更新消息到 Wire
+     */
+    private void sendTodoUpdate(List<Todo> todos, int pending, int inProgress, int done, int cancelled, int error) {
+        if (wire == null) {
+            log.debug("Wire not set, skipping todo update notification");
+            return;
+        }
+        
+        List<TodoUpdateMessage.TodoItem> items = todos.stream()
+            .map(t -> TodoUpdateMessage.TodoItem.builder()
+                .id(t.getId())
+                .title(t.getTitle())
+                .status(t.getStatus())
+                .parentId(t.getParentId())
+                .build())
+            .collect(Collectors.toList());
+        
+        TodoUpdateMessage msg = TodoUpdateMessage.builder()
+            .todos(items)
+            .totalCount(todos.size())
+            .pendingCount(pending)
+            .inProgressCount(inProgress)
+            .doneCount(done)
+            .cancelledCount(cancelled)
+            .errorCount(error)
+            .build();
+        
+        wire.send(msg);
+        log.debug("Sent todo update: {} items", todos.size());
     }
 }

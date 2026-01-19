@@ -488,4 +488,61 @@ public class SkillLoader {
         }
         return true;  // 默认启用
     }
+    
+    // ==================== JWork 扩展方法 ====================
+    
+    /**
+     * 从单个 Skill 目录加载 Skill
+     * 
+     * @param skillPath Skill 目录路径（包含 SKILL.md）
+     * @return 加载的 SkillSpec，加载失败返回 null
+     */
+    public SkillSpec loadSkillFromPath(Path skillPath) {
+        if (skillPath == null || !Files.exists(skillPath)) {
+            log.warn("Skill path does not exist: {}", skillPath);
+            return null;
+        }
+        
+        Path skillFile;
+        if (Files.isDirectory(skillPath)) {
+            skillFile = skillPath.resolve("SKILL.md");
+        } else {
+            skillFile = skillPath;
+        }
+        
+        if (!Files.exists(skillFile)) {
+            log.warn("SKILL.md not found in: {}", skillPath);
+            return null;
+        }
+        
+        SkillSpec skill = parseSkillFile(skillFile);
+        if (skill != null) {
+            skill.setSkillFilePath(skillFile);
+            
+            // 检查 resources 目录
+            Path skillDir = Files.isDirectory(skillPath) ? skillPath : skillPath.getParent();
+            Path resourcesDir = skillDir.resolve("resources");
+            if (Files.exists(resourcesDir) && Files.isDirectory(resourcesDir)) {
+                skill.setResourcesPath(resourcesDir);
+            }
+            
+            // 检查 scripts 目录
+            Path scriptsDir = skillDir.resolve("scripts");
+            if (Files.exists(scriptsDir) && Files.isDirectory(scriptsDir)) {
+                skill.setScriptsPath(scriptsDir);
+            }
+        }
+        
+        return skill;
+    }
+    
+    /**
+     * 获取用户 Skills 目录
+     * 
+     * @return 用户 Skills 目录路径 (~/.jimi/skills)
+     */
+    public Path getUserSkillsDirectory() {
+        String userHome = System.getProperty("user.home");
+        return Paths.get(userHome, ".jimi", "skills");
+    }
 }

@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -48,6 +49,12 @@ public class Session {
     private AtomicInteger globalStepCounter = new AtomicInteger(0);
     
     /**
+     * 取消标志
+     */
+    @Builder.Default
+    private AtomicBoolean cancelled = new AtomicBoolean(false);
+    
+    /**
      * 获取并递增全局步数
      * @return 递增后的步数
      */
@@ -61,5 +68,26 @@ public class Session {
      */
     public int getGlobalStepCount() {
         return globalStepCounter.get();
+    }
+    
+    /**
+     * 取消当前任务
+     */
+    public void cancel() {
+        cancelled.set(true);
+    }
+    
+    /**
+     * 检查是否已取消
+     */
+    public boolean isCancelled() {
+        return cancelled.get();
+    }
+    
+    /**
+     * 重置取消标志（新任务开始时调用）
+     */
+    public void resetCancelled() {
+        cancelled.set(false);
     }
 }

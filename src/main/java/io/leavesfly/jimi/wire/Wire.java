@@ -23,4 +23,9 @@ public interface Wire {
      * 完成消息发送
      */
     void complete();
+    
+    /**
+     * 重置 Wire，创建新的 Sink 以支持多次执行
+     */
+    void reset();
 }

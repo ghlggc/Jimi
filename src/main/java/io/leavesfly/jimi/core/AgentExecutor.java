@@ -6,6 +6,7 @@ import io.leavesfly.jimi.core.engine.context.Context;
 import io.leavesfly.jimi.core.engine.executor.*;
 import io.leavesfly.jimi.core.engine.runtime.Runtime;
 import io.leavesfly.jimi.exception.MaxStepsReachedException;
+import io.leavesfly.jimi.exception.RunCancelledException;
 
 import io.leavesfly.jimi.llm.LLM;
 import io.leavesfly.jimi.llm.message.ContentPart;
@@ -230,6 +231,13 @@ public class AgentExecutor {
      * Agent 循环步骤
      */
     private Mono<Void> agentLoopStep(int stepNo) {
+        // 检查是否已取消
+        if (runtime.getSession().isCancelled()) {
+            log.info("Agent '{}' cancelled at step {}", agentName != null ? agentName : "main", stepNo);
+            wire.send(new StepInterrupted());
+            return Mono.error(new RunCancelledException());
+        }
+        
         // 记录步数
         executionState.setStepsInTask(stepNo);
 

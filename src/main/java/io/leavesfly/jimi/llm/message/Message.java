@@ -9,7 +9,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 消息实体
@@ -150,17 +152,36 @@ public class Message {
      */
     @JsonIgnore
     public String getTextContent() {
+        if (content == null) return "";
         if (content instanceof String) {
             return (String) content;
-        } else if (content instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Object> parts = (List<Object>) content;
+        }
+        if (content instanceof java.util.Map) {
+            java.util.Map<?, ?> map = (java.util.Map<?, ?>) content;
+            Object t = map.get("text");
+            if (t != null) return String.valueOf(t);
+            Object c = map.get("content");
+            if (c != null) return String.valueOf(c);
+            return "";
+        }
+        if (content instanceof List) {
+            List<?> parts = (List<?>) content;
             StringBuilder sb = new StringBuilder();
             for (Object part : parts) {
-                if (part instanceof TextPart) {
-                    sb.append(((TextPart) part).getText());
-                } else if (part instanceof String) {
+                if (part == null) continue;
+                if (part instanceof String) {
                     sb.append(part);
+                } else if (part instanceof java.util.Map) {
+                    java.util.Map<?, ?> map = (java.util.Map<?, ?>) part;
+                    Object t = map.get("text");
+                    if (t != null) {
+                        sb.append(t);
+                    } else {
+                        Object c = map.get("content");
+                        if (c != null) sb.append(c);
+                    }
+                } else if (part instanceof TextPart) {
+                    sb.append(((TextPart) part).getText());
                 }
             }
             return sb.toString();

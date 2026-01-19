@@ -9,6 +9,7 @@ import io.leavesfly.jimi.mcp.MCPSchema;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PreDestroy;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -212,7 +213,9 @@ public class McpServer implements AutoCloseable {
     /**
      * 清理资源
      */
-    private void cleanup() {
+    @PreDestroy
+    public void cleanup() {
+        if (!running) return;
         log.info("Cleaning up MCP Server...");
         running = false;
         

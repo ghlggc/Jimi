@@ -295,4 +295,137 @@ public class SkillRegistry {
         
         return stats;
     }
+    
+    // ==================== JWork 扩展方法 ====================
+    
+    /**
+     * 安装 Skill（从本地路径）
+     * 将 Skill 复制到用户 Skills 目录并注册
+     * 
+     * @param skillPath Skill 目录路径（包含 SKILL.md）
+     * @return 安装后的 SkillSpec
+     */
+    public SkillSpec install(Path skillPath) {
+        log.info("Installing skill from: {}", skillPath);
+        
+        // 1. 加载 Skill
+        SkillSpec skill = skillLoader.loadSkillFromPath(skillPath);
+        if (skill == null) {
+            throw new IllegalArgumentException("Invalid skill at: " + skillPath);
+        }
+        
+        // 2. 复制到用户目录
+        Path userSkillsDir = skillLoader.getUserSkillsDirectory();
+        Path targetDir = userSkillsDir.resolve(skill.getName());
+        
+        try {
+            java.nio.file.Files.createDirectories(targetDir);
+            
+            // 复制所有文件
+            try (var stream = java.nio.file.Files.walk(skillPath)) {
+                stream.forEach(source -> {
+                    try {
+                        Path target = targetDir.resolve(skillPath.relativize(source));
+                        if (java.nio.file.Files.isDirectory(source)) {
+                            java.nio.file.Files.createDirectories(target);
+                        } else {
+                            java.nio.file.Files.copy(source, target, 
+                                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to copy file: {}", source, e);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to install skill: " + skill.getName(), e);
+        }
+        
+        // 3. 注册
+        skill.setScope(SkillScope.GLOBAL);
+        register(skill);
+        
+        log.info("Skill installed: {}", skill.getName());
+        return skill;
+    }
+    
+    /**
+     * 卸载 Skill
+     * 从注册表和用户目录中移除
+     * 
+     * @param skillName Skill 名称
+     */
+    public void uninstall(String skillName) {
+        log.info("Uninstalling skill: {}", skillName);
+        
+        SkillSpec skill = skillsByName.get(skillName);
+        if (skill == null) {
+            throw new IllegalArgumentException("Skill not found: " + skillName);
+        }
+        
+        // 只能卸载全局 Skill（用户安装的）
+        if (skill.getScope() != SkillScope.GLOBAL) {
+            throw new IllegalArgumentException("Can only uninstall global skills: " + skillName);
+        }
+        
+        // 1. 从注册表移除
+        skillsByName.remove(skillName);
+        unregisterFromIndexes(skill);
+        
+        // 2. 从用户目录删除
+        Path userSkillsDir = skillLoader.getUserSkillsDirectory();
+        Path skillDir = userSkillsDir.resolve(skillName);
+        
+        if (java.nio.file.Files.exists(skillDir)) {
+            try {
+                deleteDirectory(skillDir);
+            } catch (Exception e) {
+                log.warn("Failed to delete skill directory: {}", skillDir, e);
+            }
+        }
+        
+        log.info("Skill uninstalled: {}", skillName);
+    }
+    
+    /**
+     * 获取 Skill 安装信息列表（供 UI 展示）
+     */
+    public List<SkillInfo> listAllInfo() {
+        return skillsByName.values().stream()
+            .map(spec -> new SkillInfo(
+                spec.getName(),
+                spec.getDescription(),
+                spec.getVersion(),
+                spec.getCategory(),
+                spec.getScope()
+            ))
+            .toList();
+    }
+    
+    /**
+     * 删除目录及其内容
+     */
+    private void deleteDirectory(Path dir) throws Exception {
+        try (var stream = java.nio.file.Files.walk(dir)) {
+            stream.sorted(java.util.Comparator.reverseOrder())
+                  .forEach(path -> {
+                      try {
+                          java.nio.file.Files.delete(path);
+                      } catch (Exception e) {
+                          log.warn("Failed to delete: {}", path);
+                      }
+                  });
+        }
+    }
+    
+    /**
+     * Skill 信息（简化版，用于 UI 展示）
+     */
+    public record SkillInfo(
+        String name,
+        String description,
+        String version,
+        String category,
+        SkillScope scope
+    ) {}
 }
