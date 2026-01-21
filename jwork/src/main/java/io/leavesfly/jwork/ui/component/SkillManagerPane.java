@@ -103,7 +103,6 @@ public class SkillManagerPane extends BorderPane {
         
         setTop(header);
         setCenter(splitPane);
-//...
         
         // 选择监听
         skillList.getSelectionModel().selectedItemProperty().addListener(
