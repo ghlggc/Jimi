@@ -9,10 +9,14 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * Agent 实体 - 表示一个 AI Agent 实例
+ * Agent 配置实体 - 表示一个 AI Agent 实例的配置和元数据
  * <p>
  * Agent 是 Jimi 系统的核心概念，代表一个具有特定能力的 AI 助手。
  * 每个 Agent 拥有自己的系统提示词、模型配置和可用工具集。
+ * </p>
+ * <p>
+ * 注意：这是一个纯数据/配置类，不包含执行逻辑。
+ * 执行逻辑由 Engine 和 AgentExecutor 负责。
  * </p>
  *
  * @author Jimi2 Team
@@ -50,14 +54,9 @@ public class Agent {
     private String model;
     
     /**
-     * 工具名称列表（用于配置）
+     * 已加载的工具实例列表（运行时已解析）
      */
-    private List<String> toolNames;
-    
-    /**
-     * 已加载的工具实例列表
-     */
-    private List<Tool> tools;
+    private List<Tool<?>> tools;
     
     /**
      * 子 Agent 列表
@@ -69,13 +68,4 @@ public class Agent {
      */
     @Builder.Default
     private int maxSteps = 100;
-    
-    /**
-     * 获取文本内容（用于兼容）
-     *
-     * @return 系统提示词
-     */
-    public String getTextContent() {
-        return systemPrompt;
-    }
 }
